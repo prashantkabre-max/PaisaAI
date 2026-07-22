@@ -7,13 +7,17 @@ def calculate_indicators(data):
         return None
 
     ltp = data.get("ltp")
-    previous_close = data.get("previous_close")
+    previous_close = data.get("close")
 
     if ltp is None or previous_close is None:
         return None
 
     change = ltp - previous_close
-    change_percent = (change / previous_close) * 100
+
+    if previous_close != 0:
+        change_percent = (change / previous_close) * 100
+    else:
+        change_percent = 0
 
     return {
         "symbol": data["symbol"],

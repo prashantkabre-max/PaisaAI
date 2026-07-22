@@ -35,33 +35,33 @@ class LiveStreamer:
         print("Subscribed Symbols :", len(self.watchlist))
         print("===================================\n")
 
- def on_message(self, message):
-     from scanner.parser import parse_market_data
-     from scanner.indicators import calculate_indicators
-     from scanner.scoring import calculate_score
+    def on_message(self, message):
+        from scanner.parser import parse_market_data
+        from scanner.indicators import calculate_indicators
+        from scanner.scoring import calculate_score
 
-     market = parse_market_data(message)
+        market = parse_market_data(message)
 
-     if market is None:
-        return
+        if market is None:
+            return
 
-     indicators = calculate_indicators(market)
+        indicators = calculate_indicators(market)
 
-     if indicators is None:
-        return
+        if indicators is None:
+            return
 
-     result = calculate_score(indicators)
+        result = calculate_score(indicators)
 
-     if result is None:
-        return
+        if result is None:
+            return
 
-     print(
-        f'{indicators["symbol"]} | '
-        f'LTP: {indicators["ltp"]:.2f} | '
-        f'Change: {indicators["change_percent"]:.2f}% | '
-        f'Score: {result["score"]} | '
-        f'Grade: {result["grade"]}'
-     )
+        print(
+            f'{indicators["symbol"]} | '
+            f'LTP: {indicators["ltp"]:.2f} | '
+            f'Change: {indicators["change_percent"]:.2f}% | '
+            f'Score: {result["score"]} | '
+            f'Grade: {result["grade"]}'
+        )
 
     def on_error(self, *args):
         print("ERROR:", args)
