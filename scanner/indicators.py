@@ -1,4 +1,4 @@
-def calculate_indicators(data):
+def calculate_indicators(data, ema9=None, ema20=None):
     """
     Calculate basic market indicators.
     """
@@ -27,5 +27,7 @@ def calculate_indicators(data):
         "open": data.get("open"),
         "high": data.get("high"),
         "low": data.get("low"),
-        "close": data.get("close")
+        "close": data.get("close"),
+        "ema9": ema9,
+        "ema20": ema20
     }

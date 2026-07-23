@@ -9,6 +9,13 @@ def calculate_score(indicators):
 
     score = 0
 
+    # EMA Trend
+    if indicators.get("ema9") is not None and indicators.get("ema20") is not None:
+        if indicators["ema9"] > indicators["ema20"]:
+            score += 20
+        elif indicators["ema9"] < indicators["ema20"]:
+            score -= 20
+
     # Price change
     if indicators["change_percent"] > 2:
         score += 40

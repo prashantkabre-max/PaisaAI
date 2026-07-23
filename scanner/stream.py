@@ -60,6 +60,10 @@ class LiveStreamer:
         )
 
         latest = get_latest_candle(market["symbol"])
+        history_1m = get_history(market["symbol"], "1m")
+
+        ema9 = calculate_ema(history_1m, 9)
+        ema20 = calculate_ema(history_1m, 20)
 
         if False and latest:
             print(
@@ -71,7 +75,11 @@ class LiveStreamer:
                 f"V:{latest['volume']}"
             )
 
-        indicators = calculate_indicators(market)
+        indicators = calculate_indicators(
+            market,
+            ema9=ema9,
+            ema20=ema20
+        )
 
         if indicators is None:
             return
