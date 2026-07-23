@@ -28,7 +28,7 @@ def parse_market_data(message):
                 "high": candle.get("high"),
                 "low": candle.get("low"),
                 "close": candle.get("close"),
-                "volume": candle.get("vol")
+                "volume": ltpc.get("ltq", 0)
             })
 
         if len(parsed) == 0:

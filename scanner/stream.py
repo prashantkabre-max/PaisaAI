@@ -1,9 +1,12 @@
 import config
 import upstox_client
 
+from indicators.ema import calculate_ema
+from indicators.timeframes import build_timeframe
 from scanner.watchlist import get_watchlist
-from data.candles import update_tick
 from datetime import datetime
+from data.candles import update_tick, get_latest_candle, get_symbol_store, get_history
+
 
 configuration = upstox_client.Configuration()
 configuration.access_token = config.ACCESS_TOKEN
@@ -31,12 +34,14 @@ class LiveStreamer:
         self.streamer.auto_reconnect(True, 5, 10)
 
     def on_open(self):
+
         print("\n===================================")
         print("Kabre AI Trader V2 Connected")
         print("Subscribed Symbols :", len(self.watchlist))
         print("===================================\n")
 
     def on_message(self, message):
+
         from scanner.parser import parse_market_data
         from scanner.indicators import calculate_indicators
         from scanner.scoring import calculate_score
@@ -54,6 +59,18 @@ class LiveStreamer:
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
 
+        latest = get_latest_candle(market["symbol"])
+
+        if False and latest:
+            print(
+                f"CANDLE | "
+                f"O:{latest['open']} "
+                f"H:{latest['high']} "
+                f"L:{latest['low']} "
+                f"C:{latest['close']} "
+                f"V:{latest['volume']}"
+            )
+
         indicators = calculate_indicators(market)
 
         if indicators is None:
@@ -63,13 +80,30 @@ class LiveStreamer:
 
         if result is None:
             return
+        store = get_symbol_store(market["symbol"])
+        history = len(store["history"]["1m"])
+        last = None
+
+        if len(store["history"]["1m"]) > 0:
+            last = store["history"]["1m"][-1]
+
+        if last:
+            print(
+                f"LAST 1M -> "
+                f"O:{last['open']} "
+                f"H:{last['high']} "
+                f"L:{last['low']} "
+                f"C:{last['close']} "
+                f"V:{last['volume']}"
+            )
 
         print(
             f'{indicators["symbol"]} | '
             f'LTP: {indicators["ltp"]:.2f} | '
             f'Change: {indicators["change_percent"]:.2f}% | '
             f'Score: {result["score"]} | '
-            f'Grade: {result["grade"]}'
+            f'Grade: {result["grade"]} | '
+            f'Candles: {history}'
         )
 
     def on_error(self, *args):

@@ -38,6 +38,8 @@ def update_tick(symbol, price, volume, timestamp):
 
     if volume is None:
         volume = 0
+    else:
+        volume = int(volume)
 
     current = store["current"]
 
@@ -64,3 +66,11 @@ def update_tick(symbol, price, volume, timestamp):
     store["current"] = create_new_candle(price, volume, timestamp)
 
     return store["current"]
+def get_latest_candle(symbol):
+    store = get_symbol_store(symbol)
+    return store["current"]
+
+def get_history(symbol, timeframe="1m"):
+    store = get_symbol_store(symbol)
+    return store["history"][timeframe]
+
