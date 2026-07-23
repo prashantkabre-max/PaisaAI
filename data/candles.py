@@ -1,46 +1,27 @@
 from collections import defaultdict
+from datetime import datetime
 
 MAX_CANDLES = 500
 
-TIMEFRAMES = {
-    "1m": 1,
-    "3m": 3,
-    "5m": 5,
-    "15m": 15,
-    "30m": 30
-}
+TIMEFRAMES = ["1m", "3m", "5m", "15m", "30m"]
 
-candles = defaultdict(
-    lambda: {
+candles = defaultdict(lambda: {
+    "current": None,
+    "history": {
         "1m": [],
         "3m": [],
         "5m": [],
         "15m": [],
         "30m": []
     }
-)
+})
+
 
 def get_symbol_store(symbol):
-    """
-    Returns the candle storage for a symbol.
-    Creates it automatically if it doesn't exist.
-    """
     return candles[symbol]
 
-def update_tick(symbol, price, volume, timestamp):
-    """
-    Receives one live market tick.
-    (Implementation will be added in the next step.)
-    """
-    store = get_symbol_store(symbol)
-
-    return store
 
 def create_new_candle(price, volume, timestamp):
-    """
-    Creates a new 1-minute candle.
-    """
-
     return {
         "timestamp": timestamp,
         "open": price,
@@ -49,3 +30,37 @@ def create_new_candle(price, volume, timestamp):
         "close": price,
         "volume": volume
     }
+def update_tick(symbol, price, volume, timestamp):
+    store = get_symbol_store(symbol)
+
+    if price is None:
+        return
+
+    if volume is None:
+        volume = 0
+
+    current = store["current"]
+
+    # First candle for this symbol
+    if current is None:
+        store["current"] = create_new_candle(price, volume, timestamp)
+        return store["current"]
+
+    # Same minute → update existing candle
+    if current["timestamp"][:16] == timestamp[:16]:
+        current["high"] = max(current["high"], price)
+        current["low"] = min(current["low"], price)
+        current["close"] = price
+        current["volume"] += volume
+        return current
+
+    # Minute changed → store completed candle
+    store["history"]["1m"].append(current)
+
+    if len(store["history"]["1m"]) > MAX_CANDLES:
+        store["history"]["1m"].pop(0)
+
+    # Start a new candle
+    store["current"] = create_new_candle(price, volume, timestamp)
+
+    return store["current"]

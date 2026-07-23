@@ -2,7 +2,8 @@ import config
 import upstox_client
 
 from scanner.watchlist import get_watchlist
-
+from data.candles import update_tick
+from datetime import datetime
 
 configuration = upstox_client.Configuration()
 configuration.access_token = config.ACCESS_TOKEN
@@ -44,6 +45,14 @@ class LiveStreamer:
 
         if market is None:
             return
+
+
+        update_tick(
+            symbol=market["symbol"],
+            price=market["ltp"],
+            volume=market.get("volume", 0),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        )
 
         indicators = calculate_indicators(market)
 
