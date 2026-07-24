@@ -115,7 +115,7 @@ def update_tick(symbol, price, volume, timestamp):
         current["close"] = price
         current["volume"] += volume
 
-        return current
+        return None
 
     # -----------------------------
     # One-minute candle completed
@@ -182,7 +182,7 @@ def update_tick(symbol, price, volume, timestamp):
         timestamp
     )
 
-    return store["current"]["1m"]
+    return completed
 def get_latest_candle(symbol):
 
     store = get_symbol_store(symbol)

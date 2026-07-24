@@ -54,12 +54,15 @@ class LiveStreamer:
             return
 
 
-        update_tick(
+        completed = update_tick(
             symbol=market["symbol"],
             price=market["ltp"],
             volume=market.get("volume", 0),
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         )
+
+        if completed is None:
+            return
 
         latest = get_latest_candle(market["symbol"])
 
@@ -101,22 +104,6 @@ class LiveStreamer:
             return
         store = get_symbol_store(market["symbol"])
         history = len(store["history"]["1m"])
-        last = None
-
-        last_printed = getattr(self, "_last_printed", {})
-
-        if len(store["history"]["1m"]) > 0:
-            last = store["history"]["1m"][-1]
-
-        if last:
-            print(
-                f"LAST 1M -> "
-                f"O:{last['open']} "
-                f"H:{last['high']} "
-                f"L:{last['low']} "
-                f"C:{last['close']} "
-                f"V:{last['volume']}"
-            )
 
         print(
             f'{indicators["symbol"]} | '
