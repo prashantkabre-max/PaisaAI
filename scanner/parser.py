@@ -1,24 +1,33 @@
+_last_vtt = {}
+
+
 def parse_market_data(message):
     try:
         if not isinstance(message, dict):
             return None
 
-        if "feeds" not in message:
+        feeds = message.get("feeds", {})
+        if not feeds:
             return None
 
         parsed = []
 
-        for instrument_key, data in message["feeds"].items():
+        for instrument_key, data in feeds.items():
 
             feed = data.get("fullFeed", {})
             market = feed.get("marketFF", {})
             ltpc = market.get("ltpc", {})
             ohlc = market.get("marketOHLC", {}).get("ohlc", [])
 
-            candle = {}
+            candle = ohlc[0] if ohlc else {}
 
-            if len(ohlc) > 0:
-                candle = ohlc[0]
+            current_vtt = int(market.get("vtt", 0))
+            previous_vtt = _last_vtt.get(instrument_key, current_vtt)
+
+            incremental_volume = max(0, current_vtt - previous_vtt)
+
+
+            _last_vtt[instrument_key] = current_vtt
 
             parsed.append({
                 "symbol": instrument_key,
@@ -28,10 +37,10 @@ def parse_market_data(message):
                 "high": candle.get("high"),
                 "low": candle.get("low"),
                 "close": candle.get("close"),
-                "volume": ltpc.get("ltq", 0)
+                "volume": incremental_volume,
             })
 
-        if len(parsed) == 0:
+        if not parsed:
             return None
 
         return parsed[0]
