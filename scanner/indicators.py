@@ -1,3 +1,5 @@
+from data.nifty200 import SYMBOL_MAP
+
 def calculate_indicators(data, all_indicators=None):
     """
     Combine live market data with calculated indicators.
@@ -23,6 +25,7 @@ def calculate_indicators(data, all_indicators=None):
         change_percent = 0
 
     return {
+        "display_symbol": SYMBOL_MAP.get(data["symbol"], data["symbol"]),
         "symbol": data["symbol"],
         "ltp": ltp,
         "change": round(change, 2),

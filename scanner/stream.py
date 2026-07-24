@@ -106,7 +106,7 @@ class LiveStreamer:
         history = len(store["history"]["1m"])
 
         print(
-            f'{indicators["symbol"]} | '
+            f'{indicators["display_symbol"]} | '
             f'LTP: {indicators["ltp"]:.2f} | '
             f'Change: {indicators["change_percent"]:.2f}% | '
             f'Score: {result["score"]} | '
