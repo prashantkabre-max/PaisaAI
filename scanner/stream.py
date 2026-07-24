@@ -1,8 +1,10 @@
 import config
 import upstox_client
+import traceback
 
+from indicators.vwap import calculate_vwap
+from indicators.engine import calculate_all_indicators
 from indicators.ema import calculate_ema
-from indicators.timeframes import build_timeframe
 from scanner.watchlist import get_watchlist
 from datetime import datetime
 from data.candles import update_tick, get_latest_candle, get_symbol_store, get_history
@@ -36,7 +38,7 @@ class LiveStreamer:
     def on_open(self):
 
         print("\n===================================")
-        print("Kabre AI Trader V2 Connected")
+        print("PaisaAI Connected")
         print("Subscribed Symbols :", len(self.watchlist))
         print("===================================\n")
 
@@ -60,10 +62,20 @@ class LiveStreamer:
         )
 
         latest = get_latest_candle(market["symbol"])
-        history_1m = get_history(market["symbol"], "1m")
 
-        ema9 = calculate_ema(history_1m, 9)
-        ema20 = calculate_ema(history_1m, 20)
+        history = {
+            "1m": get_history(market["symbol"], "1m"),
+            "3m": get_history(market["symbol"], "3m"),
+            "5m": get_history(market["symbol"], "5m"),
+            "15m": get_history(market["symbol"], "15m"),
+            "30m": get_history(market["symbol"], "30m"),
+            "60m": get_history(market["symbol"], "60m"),
+        }
+
+        all_indicators = calculate_all_indicators(
+            history["1m"],
+            market["symbol"]
+        )
 
         if False and latest:
             print(
@@ -77,8 +89,7 @@ class LiveStreamer:
 
         indicators = calculate_indicators(
             market,
-            ema9=ema9,
-            ema20=ema20
+            all_indicators
         )
 
         if indicators is None:
@@ -91,6 +102,8 @@ class LiveStreamer:
         store = get_symbol_store(market["symbol"])
         history = len(store["history"]["1m"])
         last = None
+
+        last_printed = getattr(self, "_last_printed", {})
 
         if len(store["history"]["1m"]) > 0:
             last = store["history"]["1m"][-1]
@@ -116,6 +129,7 @@ class LiveStreamer:
 
     def on_error(self, *args):
         print("ERROR:", args)
+        traceback.print_exc()
 
     def on_close(self, *args):
         print("Connection Closed")
