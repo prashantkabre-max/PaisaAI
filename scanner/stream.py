@@ -8,6 +8,7 @@ from indicators.engine import calculate_all_indicators
 
 from scanner.watchlist import get_watchlist
 from scanner.risk import calculate_risk
+from scanner.ranking import print_ranking
 
 from data.candles import (
     update_tick,
@@ -65,7 +66,6 @@ class LiveStreamer:
             return None
 
         return market
-
     def calculate_indicators(self, market):
 
         from scanner.indicators import calculate_indicators
@@ -117,7 +117,6 @@ class LiveStreamer:
             )
 
         return indicators, result, signal, risk
-
     def print_trade(self, indicators, result, signal, risk):
 
         print(indicators)
@@ -125,6 +124,18 @@ class LiveStreamer:
 
         if result["grade"] == "IGNORE":
             return
+
+        trade = {
+            "symbol": indicators["display_symbol"],
+            "signal": signal,
+            "grade": result["grade"],
+            "confidence": result["confidence"],
+        }
+
+        self.live_trades.append(trade)
+        self.live_trades = self.live_trades[-50:]
+
+        print_ranking(self.live_trades)
 
         print("=" * 70)
         print(f'STOCK      : {indicators["display_symbol"]}')
@@ -145,7 +156,6 @@ class LiveStreamer:
             print(f'R:R        : {risk["risk_reward"]}:1')
 
         print("=" * 70)
-
     def on_message(self, message):
 
         market = self.process_market(message)
@@ -172,5 +182,4 @@ class LiveStreamer:
     def start(self):
         print("Connecting...")
         self.streamer.connect()
-
 
