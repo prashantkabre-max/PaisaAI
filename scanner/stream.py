@@ -2,13 +2,15 @@ import config
 import upstox_client
 import traceback
 
-from indicators.engine import calculate_all_indicators
-from scanner.watchlist import get_watchlist
 from datetime import datetime
+
+from indicators.engine import calculate_all_indicators
+
+from scanner.watchlist import get_watchlist
+from scanner.risk import calculate_risk
 
 from data.candles import (
     update_tick,
-    get_symbol_store,
     get_history,
 )
 
@@ -23,6 +25,7 @@ class LiveStreamer:
     def __init__(self):
 
         self.watchlist = get_watchlist()
+        self.live_trades = []
 
         self.streamer = upstox_client.MarketDataStreamerV3(
             api_client,
@@ -44,16 +47,14 @@ class LiveStreamer:
         print("Subscribed Symbols :", len(self.watchlist))
         print("===================================\n")
 
-    def on_message(self, message):
+    def process_market(self, message):
 
         from scanner.parser import parse_market_data
-        from scanner.indicators import calculate_indicators
-        from scanner.scoring import calculate_score
 
         market = parse_market_data(message)
 
         if market is None:
-            return
+            return None
 
         if update_tick(
             symbol=market["symbol"],
@@ -61,7 +62,13 @@ class LiveStreamer:
             volume=market.get("volume", 0),
             timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ) is None:
-            return
+            return None
+
+        return market
+
+    def calculate_indicators(self, market):
+
+        from scanner.indicators import calculate_indicators
 
         history = {
             "1m": get_history(market["symbol"], "1m"),
@@ -72,45 +79,88 @@ class LiveStreamer:
             market["symbol"],
         )
 
-        indicators = calculate_indicators(
+        return calculate_indicators(
             market,
             all_indicators,
         )
 
+    def calculate_trade(self, indicators):
+
+        from scanner.scoring import calculate_score
+
         if indicators is None:
-            return
+            return None
 
         result = calculate_score(indicators)
-        print(indicators)
-
-        print(indicators["display_symbol"], result)
 
         if result is None:
-            return
+            return None
 
         signal = "IGNORE"
 
         ema9 = indicators.get("ema9")
         ema20 = indicators.get("ema20")
 
-        if result["grade"] != "IGNORE" and ema9 is not None and ema20 is not None:
-            if ema9 > ema20:
-                signal = "BUY"
-            else:
-                signal = "SELL"
+        if (
+            result["grade"] != "IGNORE"
+            and ema9 is not None
+            and ema20 is not None
+        ):
+            signal = "BUY" if ema9 > ema20 else "SELL"
 
-        if result["grade"] != "IGNORE":
-            print("=" * 70)
-            print(f'STOCK      : {indicators["display_symbol"]}')
-            print(f'GRADE      : {result["grade"]}')
-            print(f'SIGNAL     : {signal}')
-            print(f'CONFIDENCE : {result["confidence"]}%')
-            print(f'PASSED     : {", ".join(result["passed"])}')
+        risk = None
 
-            if result["failed"]:
-                print(f'FAILED     : {", ".join(result["failed"])}')
+        if signal != "IGNORE":
+            risk = calculate_risk(
+                indicators,
+                signal,
+            )
 
-            print("=" * 70)
+        return indicators, result, signal, risk
+
+    def print_trade(self, indicators, result, signal, risk):
+
+        print(indicators)
+        print(indicators["display_symbol"], result)
+
+        if result["grade"] == "IGNORE":
+            return
+
+        print("=" * 70)
+        print(f'STOCK      : {indicators["display_symbol"]}')
+        print(f'GRADE      : {result["grade"]}')
+        print(f'SIGNAL     : {signal}')
+        print(f'CONFIDENCE : {result["confidence"]}%')
+        print(f'PASSED     : {", ".join(result["passed"])}')
+
+        if result["failed"]:
+            print(f'FAILED     : {", ".join(result["failed"])}')
+
+        if risk:
+            print(f'ENTRY      : {risk["entry"]}')
+            print(f'STOP LOSS  : {risk["stop_loss"]}')
+            print(f'TARGET 1   : {risk["target1"]}')
+            print(f'TARGET 2   : {risk["target2"]}')
+            print(f'TARGET 3   : {risk["target3"]}')
+            print(f'R:R        : {risk["risk_reward"]}:1')
+
+        print("=" * 70)
+
+    def on_message(self, message):
+
+        market = self.process_market(message)
+
+        if market is None:
+            return
+
+        indicators = self.calculate_indicators(market)
+
+        trade = self.calculate_trade(indicators)
+
+        if trade is None:
+            return
+
+        self.print_trade(*trade)
 
     def on_error(self, *args):
         print("ERROR:", args)
@@ -122,3 +172,5 @@ class LiveStreamer:
     def start(self):
         print("Connecting...")
         self.streamer.connect()
+
+
