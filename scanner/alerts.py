@@ -1,3 +1,7 @@
+"""
+PaisaAI Alert Engine
+"""
+
 from datetime import datetime, timedelta
 
 _last_alerts = {}
@@ -5,11 +9,18 @@ _last_alerts = {}
 ALERT_COOLDOWN = timedelta(minutes=5)
 
 
-def should_alert(symbol, action, grade, confidence):
-    if action == "IGNORE":
+def should_alert(trade):
+    """
+    Prevent duplicate alerts within cooldown.
+    """
+
+    if trade is None:
         return False
 
-    key = f"{symbol}:{action}"
+    if trade["action"] == "IGNORE":
+        return False
+
+    key = f'{trade["symbol"]}:{trade["action"]}'
 
     now = datetime.now()
 
@@ -21,28 +32,34 @@ def should_alert(symbol, action, grade, confidence):
     return True
 
 
-def build_alert(result):
+def build_alert(trade):
+    """
+    Build a standard alert object.
+    """
+
     return {
-        "symbol": result["symbol"],
-        "action": result["action"],
-        "grade": result["grade"],
-        "confidence": result["confidence"],
-        "risk": result["risk"],
-        "market_sentiment": result["market_sentiment"],
-        "stock_sentiment": result["stock_sentiment"],
-        "trade_timing": result["trade_timing"],
-        "reasons": result["reasons"],
-        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "symbol": trade["symbol"],
+        "action": trade["action"],
+        "grade": trade["grade"],
+        "confidence": trade["confidence"],
+        "risk": trade["risk"],
+        "market_sentiment": trade["market_sentiment"],
+        "stock_sentiment": trade["stock_sentiment"],
+        "trade_timing": trade["trade_timing"],
+        "passed": trade["passed"],
+        "failed": trade["failed"],
+        "generated_at": datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
     }
 
 
-def process_alert(result):
-    if not should_alert(
-        result["symbol"],
-        result["action"],
-        result["grade"],
-        result["confidence"],
-    ):
+def process_alert(trade):
+    """
+    Returns an alert object if alert criteria are met.
+    """
+
+    if not should_alert(trade):
         return None
 
-    return build_alert(result)
+    return build_alert(trade)

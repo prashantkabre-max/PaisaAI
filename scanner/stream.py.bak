@@ -7,10 +7,8 @@ from datetime import datetime
 from indicators.engine import calculate_all_indicators
 
 from scanner.watchlist import get_watchlist
+from scanner.risk import calculate_risk
 from scanner.ranking import print_ranking
-
-from scanner.decision import evaluate_trade
-from scanner.alerts import process_alert
 
 from data.candles import (
     update_tick,
@@ -63,23 +61,17 @@ class LiveStreamer:
             symbol=market["symbol"],
             price=market["ltp"],
             volume=market.get("volume", 0),
-            timestamp=datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         ) is None:
             return None
 
         return market
-
     def calculate_indicators(self, market):
 
         from scanner.indicators import calculate_indicators
 
         history = {
-            "1m": get_history(
-                market["symbol"],
-                "1m",
-            ),
+            "1m": get_history(market["symbol"], "1m"),
         }
 
         all_indicators = calculate_all_indicators(
@@ -99,60 +91,63 @@ class LiveStreamer:
         if indicators is None:
             return None
 
-        score_result = calculate_score(indicators)
+        result = calculate_score(indicators)
 
-        if score_result is None:
+        if result is None:
             return None
 
-        return evaluate_trade(
-            indicators,
-            score_result,
-        )
+        signal = "IGNORE"
 
-    def print_trade(self, trade):
+        ema9 = indicators.get("ema9")
+        ema20 = indicators.get("ema20")
 
-        if trade is None:
+        if (
+            result["grade"] != "IGNORE"
+            and ema9 is not None
+            and ema20 is not None
+        ):
+            signal = "BUY" if ema9 > ema20 else "SELL"
+
+        risk = None
+
+        if signal != "IGNORE":
+            risk = calculate_risk(
+                indicators,
+                signal,
+            )
+
+        return indicators, result, signal, risk
+    def print_trade(self, indicators, result, signal, risk):
+
+        print(indicators)
+        print(indicators["display_symbol"], result)
+
+        if result["grade"] == "IGNORE":
             return
 
-        print(trade)
-
-        if trade["grade"] == "IGNORE":
-            return
-
-        ranking_trade = {
-            "symbol": trade["symbol"],
-            "signal": trade["action"],
-            "grade": trade["grade"],
-            "confidence": trade["confidence"],
+        trade = {
+            "symbol": indicators["display_symbol"],
+            "signal": signal,
+            "grade": result["grade"],
+            "confidence": result["confidence"],
         }
 
-        self.live_trades.append(ranking_trade)
+        self.live_trades.append(trade)
         self.live_trades = self.live_trades[-50:]
 
         print_ranking(self.live_trades)
 
-        alert = process_alert(trade)
-
-        if alert:
-            print("\n🔔 ALERT")
-            print(alert)
-
         print("=" * 70)
-        print(f'STOCK      : {trade["symbol"]}')
-        print(f'ACTION     : {trade["action"]}')
-        print(f'GRADE      : {trade["grade"]}')
-        print(f'CONFIDENCE : {trade["confidence"]}%')
+        print(f'STOCK      : {indicators["display_symbol"]}')
+        print(f'GRADE      : {result["grade"]}')
+        print(f'SIGNAL     : {signal}')
+        print(f'CONFIDENCE : {result["confidence"]}%')
+        print(f'PASSED     : {", ".join(result["passed"])}')
 
-        if trade["passed"]:
-            print(f'PASSED     : {", ".join(trade["passed"])}')
+        if result["failed"]:
+            print(f'FAILED     : {", ".join(result["failed"])}')
 
-        if trade["failed"]:
-            print(f'FAILED     : {", ".join(trade["failed"])}')
-
-        if trade["risk"]:
-
-            risk = trade["risk"]
-
+        if risk:
             print(f'ENTRY      : {risk["entry"]}')
             print(f'STOP LOSS  : {risk["stop_loss"]}')
             print(f'TARGET 1   : {risk["target1"]}')
@@ -161,7 +156,6 @@ class LiveStreamer:
             print(f'R:R        : {risk["risk_reward"]}:1')
 
         print("=" * 70)
-
     def on_message(self, message):
 
         market = self.process_market(message)
@@ -176,7 +170,7 @@ class LiveStreamer:
         if trade is None:
             return
 
-        self.print_trade(trade)
+        self.print_trade(*trade)
 
     def on_error(self, *args):
         print("ERROR:", args)
@@ -188,3 +182,4 @@ class LiveStreamer:
     def start(self):
         print("Connecting...")
         self.streamer.connect()
+
