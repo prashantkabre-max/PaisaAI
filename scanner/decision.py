@@ -5,6 +5,7 @@ PaisaAI Unified Decision Engine
 from scanner.risk import calculate_risk
 from scanner.trade_timing import evaluate_trade_timing
 
+
 def evaluate_trade(
     indicators,
     score_result,
@@ -13,6 +14,7 @@ def evaluate_trade(
     Builds the unified trade object for PaisaAI.
 
     This is the single object that flows through:
+
     Decision -> Alerts -> Learning -> Ranking
     """
 
@@ -61,7 +63,11 @@ def evaluate_trade(
         # Future engines
         "market_sentiment": None,
         "stock_sentiment": None,
-        "trade_timing": evaluate_trade_timing(indicators, risk),
+        "trade_timing": evaluate_trade_timing(
+            indicators,
+            risk,
+            signal,
+        ),
     }
 
     return trade

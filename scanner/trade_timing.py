@@ -1,12 +1,4 @@
-"""
-PaisaAI Trade Timing Engine
-
-Determines whether this is the right moment to enter an
-otherwise valid trade.
-"""
-
-
-def evaluate_trade_timing(indicators, risk):
+def evaluate_trade_timing(indicators, risk, direction="BUY"):
     """
     Evaluates whether this is the right time to enter a trade.
     Returns a timing score, rating and reasons.
@@ -24,36 +16,34 @@ def evaluate_trade_timing(indicators, risk):
     atr = indicators.get("atr")
 
     # EMA alignment
-    if (
-        ema9 is not None
-        and ema20 is not None
-        and ema9 > ema20
-    ):
-        score += 4
-        reasons.append("EMA aligned")
+    if ema9 is not None and ema20 is not None:
+        if direction == "BUY" and ema9 > ema20:
+            score += 4
+            reasons.append("BUY EMA aligned")
+        elif direction == "SELL" and ema9 < ema20:
+            score += 4
+            reasons.append("SELL EMA aligned")
 
     # VWAP confirmation
-    if (
-        ltp is not None
-        and vwap is not None
-        and ltp > vwap
-    ):
-        score += 3
-        reasons.append("Above VWAP")
+    if ltp is not None and vwap is not None:
+        if direction == "BUY" and ltp > vwap:
+            score += 3
+            reasons.append("Above VWAP")
+        elif direction == "SELL" and ltp < vwap:
+            score += 3
+            reasons.append("Below VWAP")
 
     # RSI sweet spot
-    if (
-        rsi is not None
-        and 55 <= rsi <= 68
-    ):
-        score += 3
-        reasons.append("Healthy RSI")
+    if rsi is not None:
+        if direction == "BUY" and 55 <= rsi <= 68:
+            score += 3
+            reasons.append("Healthy RSI")
+        elif direction == "SELL" and 32 <= rsi <= 45:
+            score += 3
+            reasons.append("Bearish RSI")
 
     # Relative volume
-    if (
-        rvol is not None
-        and rvol >= 2.0
-    ):
+    if rvol is not None and rvol >= 2.0:
         score += 4
         reasons.append("Strong Volume")
 
@@ -63,10 +53,7 @@ def evaluate_trade_timing(indicators, risk):
         reasons.append("ATR Confirmed")
 
     # Risk : Reward
-    if (
-        risk is not None
-        and risk.get("risk_reward", 0) >= 2
-    ):
+    if risk is not None and risk.get("risk_reward", 0) >= 2:
         score += 4
         reasons.append("Good Risk:Reward")
 

@@ -25,7 +25,17 @@ WEIGHTS = {
 }
 
 
-def calculate_score(indicators):
+def calculate_score(indicators, direction="BUY"):
+    """
+    Calculates PaisaAI confidence score.
+
+    direction:
+        BUY  -> Bullish scoring
+        SELL -> Bearish scoring
+
+    The current rules are direction-agnostic. Future rule updates
+    will use the direction parameter for separate BUY/SELL logic.
+    """
 
     score = 0
     passed = []
