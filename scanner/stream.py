@@ -130,45 +130,84 @@ class LiveStreamer:
 
         register_trade(trade)
 
-        print(trade)
+        #print(trade)
 
         ranking_trade = {
             "symbol": trade["symbol"],
-            "signal": trade["action"],
+            "action": trade["action"],
             "grade": trade["grade"],
             "confidence": trade["confidence"],
+            "risk": trade["risk"],
+            "passed": trade["passed"],
+            "failed": trade["failed"],
         }
 
         self.live_trades.append(ranking_trade)
         self.live_trades = self.live_trades[-50:]
 
-        print_ranking(self.live_trades)
+       # print_ranking(self.live_trades)
 
-        print("\n🔔 ALERT")
-        print(alert)
+        print()
+
+        signal_icon = "🟢" if trade["action"] == "BUY" else "🔴"
 
         print("=" * 70)
-        print(f'STOCK      : {trade["symbol"]}')
-        print(f'ACTION     : {trade["action"]}')
-        print(f'GRADE      : {trade["grade"]}')
-        print(f'CONFIDENCE : {trade["confidence"]}%')
 
-        if trade["passed"]:
-            print(f'PASSED     : {", ".join(trade["passed"])}')
+        grade = trade["grade"]
 
-        if trade["failed"]:
-            print(f'FAILED     : {", ".join(trade["failed"])}')
+        if grade == "A+":
+            title = "🔴 A+ TRADE FOUND"
+        elif grade == "A":
+            title = "🟢 A TRADE FOUND"
+        else:
+            title = "🟡 A- TRADE FOUND"
+
+        print(f"{title} : {trade['symbol']}")
+
+        print("=" * 70)
 
         if trade["risk"]:
-
             risk = trade["risk"]
 
-            print(f'ENTRY      : {risk["entry"]}')
-            print(f'STOP LOSS  : {risk["stop_loss"]}')
-            print(f'TARGET 1   : {risk["target1"]}')
-            print(f'TARGET 2   : {risk["target2"]}')
-            print(f'TARGET 3   : {risk["target3"]}')
-            print(f'R:R        : {risk["risk_reward"]}:1')
+            print(f"💰 Entry Price    : ₹{risk['entry']:.2f}")
+            print(f"🛑 Stop Loss      : ₹{risk['stop_loss']:.2f}")
+            print()
+
+            print(f"🎯 Target 1       : ₹{risk['target1']:.2f}")
+            print(f"🎯 Target 2       : ₹{risk['target2']:.2f}")
+            print(f"🎯 Target 3       : ₹{risk['target3']:.2f}")
+            print()
+
+            print(f"📉 Maximum Loss   : ₹{risk['risk']:.2f}/share")
+            print(f"📈 Expected Gain  : ₹{risk['reward']:.2f}/share")
+            print()
+
+            rr = risk["risk_reward"]
+
+            if rr >= 2:
+                quality = "🟢 EXCELLENT"
+            elif rr >= 1.75:
+                quality = "🔵 GOOD"
+            elif rr >= 1.50:
+                quality = "🟡 AVERAGE"
+            else:
+                quality = "🔴 POOR"
+
+            print(f"⭐ Trade Quality  : {quality}")
+            print(f"⚖️ Risk vs Reward : Risk ₹1 → Reward ₹{rr:.1f}")
+            print()
+
+        print(f"🎯 Confidence     : {trade['confidence']}%")
+        print(f"🏅 Grade          : {trade['grade']}")
+
+        if trade["passed"]:
+            print(f"✅ Confirmations  : {', '.join(trade['passed'])}")
+
+        if trade["failed"]:
+            print(f"❌ Missing        : {', '.join(trade['failed'])}")
+
+        if alert.get("generated_at"):
+            print(f"🕒 Time           : {alert['generated_at']}")
 
         print("=" * 70)
 

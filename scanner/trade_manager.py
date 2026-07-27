@@ -47,22 +47,43 @@ def update_trade(symbol, price):
 
     trade = _active_trades[symbol]
 
-    if not trade["target1_hit"] and price >= trade["target1"]:
-        trade["target1_hit"] = True
-        return {"symbol": symbol, "event": "TARGET_1_HIT"}
+    if trade["action"] == "BUY":
 
-    if not trade["target2_hit"] and price >= trade["target2"]:
-        trade["target2_hit"] = True
-        return {"symbol": symbol, "event": "TARGET_2_HIT"}
+        if not trade["target1_hit"] and price >= trade["target1"]:
+            trade["target1_hit"] = True
+            return {"symbol": symbol, "event": "TARGET_1_HIT"}
 
-    if not trade["target3_hit"] and price >= trade["target3"]:
-        trade["target3_hit"] = True
-        del _active_trades[symbol]
-        return {"symbol": symbol, "event": "TARGET_3_HIT"}
+        if not trade["target2_hit"] and price >= trade["target2"]:
+            trade["target2_hit"] = True
+            return {"symbol": symbol, "event": "TARGET_2_HIT"}
 
-    if price <= trade["stop_loss"]:
-        del _active_trades[symbol]
-        return {"symbol": symbol, "event": "STOP_LOSS_HIT"}
+        if not trade["target3_hit"] and price >= trade["target3"]:
+            trade["target3_hit"] = True
+            del _active_trades[symbol]
+            return {"symbol": symbol, "event": "TARGET_3_HIT"}
+
+        if price <= trade["stop_loss"]:
+            del _active_trades[symbol]
+            return {"symbol": symbol, "event": "STOP_LOSS_HIT"}
+
+    else:  # SELL
+
+        if not trade["target1_hit"] and price <= trade["target1"]:
+            trade["target1_hit"] = True
+            return {"symbol": symbol, "event": "TARGET_1_HIT"}
+
+        if not trade["target2_hit"] and price <= trade["target2"]:
+            trade["target2_hit"] = True
+            return {"symbol": symbol, "event": "TARGET_2_HIT"}
+
+        if not trade["target3_hit"] and price <= trade["target3"]:
+            trade["target3_hit"] = True
+            del _active_trades[symbol]
+            return {"symbol": symbol, "event": "TARGET_3_HIT"}
+
+        if price >= trade["stop_loss"]:
+            del _active_trades[symbol]
+            return {"symbol": symbol, "event": "STOP_LOSS_HIT"}
 
     return None
 
