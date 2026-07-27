@@ -3,7 +3,7 @@ PaisaAI Unified Decision Engine
 """
 
 from scanner.risk import calculate_risk
-
+from scanner.trade_timing import evaluate_trade_timing
 
 def evaluate_trade(
     indicators,
@@ -61,7 +61,7 @@ def evaluate_trade(
         # Future engines
         "market_sentiment": None,
         "stock_sentiment": None,
-        "trade_timing": None,
+        "trade_timing": evaluate_trade_timing(indicators, risk),
     }
 
     return trade
