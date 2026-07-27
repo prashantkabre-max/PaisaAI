@@ -1,17 +1,16 @@
 """
-PaisaAI Alert Engine
+PaisaAI Alert Engine with Trade Lifecycle
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
-_last_alerts = {}
-
-ALERT_COOLDOWN = timedelta(minutes=5)
+# Active trades currently being managed
+_active_trades = {}
 
 
 def should_alert(trade):
     """
-    Prevent duplicate alerts within cooldown.
+    Allow only one active BUY/SELL trade per stock.
     """
 
     if trade is None:
@@ -20,24 +19,31 @@ def should_alert(trade):
     if trade["action"] == "IGNORE":
         return False
 
-    key = f'{trade["symbol"]}:{trade["action"]}'
+    symbol = trade["symbol"]
 
-    now = datetime.now()
+    # Already managing this stock
+    if symbol in _active_trades:
+        return False
 
-    if key in _last_alerts:
-        if now - _last_alerts[key] < ALERT_COOLDOWN:
-            return False
+    _active_trades[symbol] = {
+        "status": "ACTIVE",
+        "entry": trade["risk"]["entry"],
+        "stop_loss": trade["risk"]["stop_loss"],
+        "target1": trade["risk"]["target1"],
+        "target2": trade["risk"]["target2"],
+        "target3": trade["risk"]["target3"],
+        "target1_hit": False,
+        "target2_hit": False,
+        "target3_hit": False,
+        "opened_at": datetime.now(),
+    }
 
-    _last_alerts[key] = now
     return True
 
 
 def build_alert(trade):
-    """
-    Build a standard alert object.
-    """
-
     return {
+        "type": "NEW_TRADE",
         "symbol": trade["symbol"],
         "action": trade["action"],
         "grade": trade["grade"],
@@ -48,18 +54,20 @@ def build_alert(trade):
         "trade_timing": trade["trade_timing"],
         "passed": trade["passed"],
         "failed": trade["failed"],
-        "generated_at": datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        ),
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
 
 def process_alert(trade):
-    """
-    Returns an alert object if alert criteria are met.
-    """
-
     if not should_alert(trade):
         return None
 
     return build_alert(trade)
+
+
+def get_active_trades():
+    """
+    Returns currently active trades.
+    """
+    return _active_trades
+

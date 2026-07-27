@@ -11,6 +11,10 @@ from scanner.ranking import print_ranking
 
 from scanner.decision import evaluate_trade
 from scanner.alerts import process_alert
+from scanner.trade_manager import (
+    register_trade,
+    update_trade,
+)
 
 from data.candles import (
     update_tick,
@@ -114,10 +118,19 @@ class LiveStreamer:
         if trade is None:
             return
 
-        print(trade)
-
         if trade["grade"] == "IGNORE":
             return
+
+        alert = process_alert(trade)
+
+        # If there is no alert, this trade is already active.
+        # Don't print or rank it again.
+        if alert is None:
+            return
+
+        register_trade(trade)
+
+        print(trade)
 
         ranking_trade = {
             "symbol": trade["symbol"],
@@ -131,11 +144,8 @@ class LiveStreamer:
 
         print_ranking(self.live_trades)
 
-        alert = process_alert(trade)
-
-        if alert:
-            print("\n🔔 ALERT")
-            print(alert)
+        print("\n🔔 ALERT")
+        print(alert)
 
         print("=" * 70)
         print(f'STOCK      : {trade["symbol"]}')
@@ -162,12 +172,23 @@ class LiveStreamer:
 
         print("=" * 70)
 
+
+
     def on_message(self, message):
 
         market = self.process_market(message)
 
         if market is None:
             return
+
+        event = update_trade(
+            market["symbol"],
+            market["ltp"],
+        )
+
+        if event:
+            print("\n📢 TRADE UPDATE")
+            print(event)
 
         indicators = self.calculate_indicators(market)
 
