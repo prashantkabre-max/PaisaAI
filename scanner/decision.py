@@ -50,7 +50,8 @@ def evaluate_trade(
         )
 
     trade = {
-        "symbol": indicators.get("display_symbol"),
+        "symbol": indicators.get("symbol"),
+        "display_symbol": indicators.get("display_symbol"),
         "action": signal,
         "grade": grade,
         "confidence": score_result.get("confidence", 0),

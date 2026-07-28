@@ -142,7 +142,8 @@ class LiveStreamer:
         if alert is None:
             return
 
-        register_trade(trade)
+        if not register_trade(trade):
+            return
 
         #print(trade)
 
@@ -176,7 +177,7 @@ class LiveStreamer:
             title = f"🔴🔴🔴 SELL SIGNAL ({grade})"
 
         print(title)
-        print(f"📊 Stock : {trade['symbol']}")
+        print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
 
         print("=" * 70)
 
@@ -238,22 +239,23 @@ class LiveStreamer:
             market["symbol"],
             market["ltp"],
         )
+        print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
 
         if event:
             print()
             print("=" * 70)
 
             if event["event"] == "TARGET_1_HIT":
-                print(f"🎯 TARGET 1 ACHIEVED : {event['symbol']}")
+                print(f"🏆🏆 TARGET 1 HIT : {event['symbol']}")
 
             elif event["event"] == "TARGET_2_HIT":
-                print(f"🎯 TARGET 2 ACHIEVED : {event['symbol']}")
+                print(f"🥈🥈 TARGET 2 HIT : {event['symbol']}")
 
             elif event["event"] == "TARGET_3_HIT":
-                print(f"🏆 TARGET 3 ACHIEVED : {event['symbol']}")
+                print(f"👑👑👑 TARGET 3 ACHIEVED : {event['symbol']}")
 
             elif event["event"] == "STOP_LOSS_HIT":
-                print(f"🛑 STOP LOSS HIT : {event['symbol']}")
+                print(f"😭😭 STOP LOSS HIT : {event['symbol']}")
 
             print(f"🕒 Time : {datetime.now().strftime('%H:%M:%S')}")
             print("=" * 70)
