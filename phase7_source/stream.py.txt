@@ -240,24 +240,8 @@ class LiveStreamer:
         )
 
         if event:
-            print()
-            print("=" * 70)
-
-            if event["event"] == "TARGET_1_HIT":
-                print(f"🎯 TARGET 1 ACHIEVED : {event['symbol']}")
-
-            elif event["event"] == "TARGET_2_HIT":
-                print(f"🎯 TARGET 2 ACHIEVED : {event['symbol']}")
-
-            elif event["event"] == "TARGET_3_HIT":
-                print(f"🏆 TARGET 3 ACHIEVED : {event['symbol']}")
-
-            elif event["event"] == "STOP_LOSS_HIT":
-                print(f"🛑 STOP LOSS HIT : {event['symbol']}")
-
-            print(f"🕒 Time : {datetime.now().strftime('%H:%M:%S')}")
-            print("=" * 70)
-            print()
+            print("\n📢 TRADE UPDATE")
+            print(event)
 
         indicators = self.calculate_indicators(market)
 

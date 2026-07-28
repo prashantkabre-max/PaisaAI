@@ -77,7 +77,7 @@ def rvol_rule(indicators):
 
 
 def price_change_rule(indicators, direction="BUY"):
-    change = indicators.get("change_percent")
+    change = indicators.get("price_change")
 
     if change is None:
         return False
