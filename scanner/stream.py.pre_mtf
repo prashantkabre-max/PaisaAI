@@ -1,0 +1,147 @@
+import config
+import upstox_client
+import traceback
+
+from datetime import datetime
+
+from indicators.engine import calculate_all_indicators
+from scanner.mtf import calculate_mtf_score
+
+from scanner.watchlist import get_watchlist
+from scanner.ranking import print_ranking
+
+from scanner.decision import evaluate_trade
+from scanner.alerts import process_alert
+from scanner.trade_manager import (
+    register_trade,
+    update_trade,
+)
+
+from data.candles import (
+    update_tick,
+    get_history,
+)
+
+configuration = upstox_client.Configuration()
+configuration.access_token = config.ACCESS_TOKEN
+
+api_client = upstox_client.ApiClient(configuration)
+
+
+class LiveStreamer:
+
+    def __init__(self):
+
+        self.watchlist = get_watchlist()
+        self.live_trades = []
+
+        self.streamer = upstox_client.MarketDataStreamerV3(
+            api_client,
+            self.watchlist,
+            "full",
+        )
+
+        self.streamer.on("open", self.on_open)
+        self.streamer.on("message", self.on_message)
+        self.streamer.on("error", self.on_error)
+        self.streamer.on("close", self.on_close)
+
+        self.streamer.auto_reconnect(True, 5, 10)
+
+    def on_open(self):
+
+        print("\n===================================")
+        print("PaisaAI Connected")
+        print("Subscribed Symbols :", len(self.watchlist))
+        print("===================================\n")
+
+    def process_market(self, message):
+
+        from scanner.parser import parse_market_data
+
+        market = parse_market_data(message)
+
+        if market is None:
+            return None
+
+        if update_tick(
+            symbol=market["symbol"],
+            price=market["ltp"],
+            volume=market.get("volume", 0),
+            timestamp=datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+        ) is None:
+            return None
+
+        return market
+
+    def calculate_indicators(self, market):
+
+        from scanner.indicators import calculate_indicators
+
+        history = {}
+
+        for timeframe in (
+            "1m",
+            "3m",
+            "5m",
+            "15m",
+            "30m",
+            "60m",
+        ):
+            history[timeframe] = get_history(
+                market["symbol"],
+                timeframe,
+            )
+
+        all_indicators = calculate_all_indicators(
+            history,
+            market["symbol"],
+        )
+
+        timeframe_indicators = {}
+
+        for timeframe, indicator_values in all_indicators.items():
+            timeframe_indicators[timeframe] = (
+                calculate_indicators(
+                    market,
+                    indicator_values,
+                )
+            )
+
+        return timeframe_indicators
+
+    def calculate_trade(self, timeframe_indicators):
+
+        if timeframe_indicators is None:
+            return None
+
+        buy_score = calculate_mtf_score(
+            timeframe_indicators,
+            "BUY",
+        )
+
+        sell_score = calculate_mtf_score(
+            timeframe_indicators,
+            "SELL",
+        )
+
+        if buy_score is None and sell_score is None:
+            return None
+
+        if sell_score["confidence"] > buy_score["confidence"]:
+            score_result = sell_score
+        else:
+            score_result = buy_score
+
+        indicators = timeframe_indicators.get("1m")
+
+        if indicators is None:
+            return None
+
+        return evaluate_trade(
+            indicators,
+            score_result,
+        )
+

@@ -5,7 +5,6 @@ import traceback
 from datetime import datetime
 
 from indicators.engine import calculate_all_indicators
-from scanner.mtf import calculate_mtf_score
 
 from scanner.watchlist import get_watchlist
 from scanner.ranking import print_ranking

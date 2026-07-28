@@ -54,19 +54,3 @@ ADX_PERIOD = 14
 
 SUPERTREND_PERIOD = 10
 SUPERTREND_MULTIPLIER = 3
-
-# ==========================
-# Multi Timeframe (MTF)
-# ==========================
-
-MTF_WEIGHTS = {
-    "1m": 10,
-    "3m": 15,
-    "5m": 20,
-    "15m": 25,
-    "30m": 20,
-    "60m": 10,
-}
-
-MTF_ALIGNMENT_MIN_SCORE = 60
-MTF_MIN_SCORE_DIFFERENCE = 10

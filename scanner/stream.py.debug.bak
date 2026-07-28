@@ -5,7 +5,6 @@ import traceback
 from datetime import datetime
 
 from indicators.engine import calculate_all_indicators
-from scanner.mtf import calculate_mtf_score
 
 from scanner.watchlist import get_watchlist
 from scanner.ranking import print_ranking
@@ -178,7 +177,7 @@ class LiveStreamer:
             title = f"🔴🔴🔴 SELL SIGNAL ({grade})"
 
         print(title)
-        print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
+        print(f"📊 Stock : {trade['symbol']}")
 
         print("=" * 70)
 
@@ -240,7 +239,6 @@ class LiveStreamer:
             market["symbol"],
             market["ltp"],
         )
-        print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
 
         if event:
             print()

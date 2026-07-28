@@ -5,6 +5,7 @@ import traceback
 from datetime import datetime
 
 from indicators.engine import calculate_all_indicators
+from scanner.mtf import calculate_mtf_score
 
 from scanner.watchlist import get_watchlist
 from scanner.ranking import print_ranking
@@ -95,24 +96,36 @@ class LiveStreamer:
             )
 
         all_indicators = calculate_all_indicators(
-            history["1m"],
+            history,
             market["symbol"],
         )
 
-        return calculate_indicators(
-            market,
-            all_indicators,
-        )
+        timeframe_indicators = {}
 
-    def calculate_trade(self, indicators):
+        for timeframe, indicator_values in all_indicators.items():
 
-        from scanner.scoring import calculate_score
+            timeframe_indicators[timeframe] = calculate_indicators(
+                market,
+                indicator_values,
+            )
 
-        if indicators is None:
+        return timeframe_indicators
+
+
+    def calculate_trade(self, timeframe_indicators):
+
+        if timeframe_indicators is None:
             return None
 
-        buy_score = calculate_score(indicators, "BUY")
-        sell_score = calculate_score(indicators, "SELL")
+        buy_score = calculate_mtf_score(
+            timeframe_indicators,
+            "BUY",
+        )
+
+        sell_score = calculate_mtf_score(
+            timeframe_indicators,
+            "SELL",
+        )
 
         if buy_score is None and sell_score is None:
             return None
@@ -122,10 +135,16 @@ class LiveStreamer:
         else:
             score_result = buy_score
 
+        indicators = timeframe_indicators.get("1m")
+
+        if indicators is None:
+            return None
+
         return evaluate_trade(
             indicators,
             score_result,
         )
+
 
     def print_trade(self, trade):
 
