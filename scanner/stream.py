@@ -126,6 +126,7 @@ class LiveStreamer:
             timeframe_indicators,
             "SELL",
         )
+        print(f"DEBUG {timeframe_indicators['1m']['symbol']} BUY={buy_score['confidence']}({buy_score['grade']}) SELL={sell_score['confidence']}({sell_score['grade']})")
 
         if buy_score is None and sell_score is None:
             return None
@@ -258,7 +259,7 @@ class LiveStreamer:
             market["symbol"],
             market["ltp"],
         )
-        print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
+       # print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
 
         if event:
             print()
@@ -280,8 +281,12 @@ class LiveStreamer:
             print("=" * 70)
             print()
 
+        history = get_history(market["symbol"], "1m")
+        print(market["symbol"], len(history))
+        if history:
+            print(history[-1])
         indicators = self.calculate_indicators(market)
-
+        print(indicators["1m"])
         trade = self.calculate_trade(indicators)
 
         if trade is None:

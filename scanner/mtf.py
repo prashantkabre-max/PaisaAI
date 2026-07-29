@@ -34,6 +34,7 @@ def calculate_mtf_score(timeframe_indicators, direction="BUY"):
     for tf, indicators in timeframe_indicators.items():
 
         result = calculate_score(indicators, direction)
+        print(tf, direction, result["confidence"], result["passed"])
 
         timeframe_scores[tf] = result
 
@@ -56,8 +57,7 @@ def calculate_mtf_score(timeframe_indicators, direction="BUY"):
         grade = "A+"
     elif confidence >= 75:
         grade = "A"
-    elif confidence >= 60:
-        grade = "A-"
+
     else:
         grade = "IGNORE"
 

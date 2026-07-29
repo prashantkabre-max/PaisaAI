@@ -221,3 +221,33 @@ def clear_all():
 def get_available_timeframes():
 
     return list(TIMEFRAME_MAP.keys())
+def preload_candle(symbol, candle):
+    store = get_symbol_store(symbol)
+
+    append_history(store, "1m", candle.copy())
+
+    for tf, minutes in TIMEFRAME_MAP.items():
+        if tf == "1m":
+            continue
+
+        bucket = store["history"][tf]
+
+        if not bucket:
+            bucket.append(candle.copy())
+            continue
+
+        last = bucket[-1]
+
+        if is_new_timeframe(last["timestamp"], candle["timestamp"], minutes):
+            bucket.append(candle.copy())
+
+            if len(bucket) > MAX_CANDLES:
+                bucket.pop(0)
+
+        else:
+            last["high"] = max(last["high"], candle["high"])
+            last["low"] = min(last["low"], candle["low"])
+            last["close"] = candle["close"]
+            last["volume"] += candle["volume"]
+
+    store["current"]["1m"] = candle.copy()

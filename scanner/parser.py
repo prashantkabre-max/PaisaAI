@@ -1,3 +1,5 @@
+from data.nifty200 import SYMBOL_MAP
+
 _last_vtt = {}
 
 
@@ -26,11 +28,10 @@ def parse_market_data(message):
 
             incremental_volume = max(0, current_vtt - previous_vtt)
 
-
             _last_vtt[instrument_key] = current_vtt
 
             parsed.append({
-                "symbol": instrument_key,
+                "symbol": SYMBOL_MAP.get(instrument_key, instrument_key),
                 "ltp": ltpc.get("ltp"),
                 "change_percent": ltpc.get("cp"),
                 "open": candle.get("open"),

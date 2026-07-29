@@ -2,7 +2,7 @@ import config
 import upstox_client
 
 from datetime import date
-from data.candles import update_tick
+from data.candles import preload_candle
 
 configuration = upstox_client.Configuration()
 configuration.access_token = config.ACCESS_TOKEN
@@ -38,12 +38,14 @@ def preload_history(symbols):
                 close = c[4]
                 volume = c[5]
 
-                update_tick(
-                    symbol,
-                    close,
-                    volume,
-                    timestamp,
-                )
+                preload_candle(symbol, {
+                    "timestamp": timestamp,
+                    "open": c[1],
+                    "high": c[2],
+                    "low": c[3],
+                    "close": c[4],
+                    "volume": c[5],
+                })
 
             print(f"{symbol}: {len(candles)} candles loaded")
 
