@@ -32,10 +32,16 @@ def calculate_score(indicators, direction="BUY"):
     direction:
         BUY  -> Bullish scoring
         SELL -> Bearish scoring
-
-    The current rules are direction-agnostic. Future rule updates
-    will use the direction parameter for separate BUY/SELL logic.
     """
+
+    # Indicators are not ready yet (warm-up period).
+    if indicators is None:
+        return {
+            "grade": "IGNORE",
+            "confidence": 0,
+            "passed": [],
+            "failed": list(WEIGHTS.keys()),
+        }
 
     score = 0
     passed = []

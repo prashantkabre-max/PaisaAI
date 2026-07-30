@@ -5,7 +5,6 @@ import traceback
 from datetime import datetime
 
 from indicators.engine import calculate_all_indicators
-from scanner.mtf import calculate_mtf_score
 
 from scanner.watchlist import get_watchlist
 from scanner.ranking import print_ranking
@@ -15,6 +14,11 @@ from scanner.alerts import process_alert
 from scanner.trade_manager import (
     register_trade,
     update_trade,
+)
+
+from scanner.setup_state import (
+   allow_signal,
+   trade_closed,
 )
 
 from data.candles import (
@@ -96,37 +100,24 @@ class LiveStreamer:
             )
 
         all_indicators = calculate_all_indicators(
-            history,
+            history["1m"],
             market["symbol"],
         )
 
-        timeframe_indicators = {}
+        return calculate_indicators(
+            market,
+            all_indicators,
+        )
 
-        for timeframe, indicator_values in all_indicators.items():
+    def calculate_trade(self, indicators):
 
-            timeframe_indicators[timeframe] = calculate_indicators(
-                market,
-                indicator_values,
-            )
+        from scanner.scoring import calculate_score
 
-        return timeframe_indicators
-
-
-    def calculate_trade(self, timeframe_indicators):
-
-        if timeframe_indicators is None:
+        if indicators is None:
             return None
 
-        buy_score = calculate_mtf_score(
-            timeframe_indicators,
-            "BUY",
-        )
-
-        sell_score = calculate_mtf_score(
-            timeframe_indicators,
-            "SELL",
-        )
-        print(f"DEBUG {timeframe_indicators['1m']['symbol']} BUY={buy_score['confidence']}({buy_score['grade']}) SELL={sell_score['confidence']}({sell_score['grade']})")
+        buy_score = calculate_score(indicators, "BUY")
+        sell_score = calculate_score(indicators, "SELL")
 
         if buy_score is None and sell_score is None:
             return None
@@ -136,16 +127,10 @@ class LiveStreamer:
         else:
             score_result = buy_score
 
-        indicators = timeframe_indicators.get("1m")
-
-        if indicators is None:
-            return None
-
         return evaluate_trade(
             indicators,
             score_result,
         )
-
 
     def print_trade(self, trade):
 
@@ -160,6 +145,11 @@ class LiveStreamer:
         # If there is no alert, this trade is already active.
         # Don't print or rank it again.
         if alert is None:
+            return
+        if not allow_signal(
+            trade["symbol"],
+            trade["action"],
+        ):
             return
 
         if not register_trade(trade):
@@ -248,18 +238,12 @@ class LiveStreamer:
 
 
 
-    def on_message(self, message):
 
-        market = self.process_market(message)
-
-        if market is None:
-            return
-
+    def process_completed_candle(self, market):
         event = update_trade(
             market["symbol"],
             market["ltp"],
         )
-       # print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
 
         if event:
             print()
@@ -267,32 +251,36 @@ class LiveStreamer:
 
             if event["event"] == "TARGET_1_HIT":
                 print(f"🏆🏆 TARGET 1 HIT : {event['symbol']}")
-
             elif event["event"] == "TARGET_2_HIT":
                 print(f"🥈🥈 TARGET 2 HIT : {event['symbol']}")
-
             elif event["event"] == "TARGET_3_HIT":
                 print(f"👑👑👑 TARGET 3 ACHIEVED : {event['symbol']}")
-
             elif event["event"] == "STOP_LOSS_HIT":
                 print(f"😭😭 STOP LOSS HIT : {event['symbol']}")
 
             print(f"🕒 Time : {datetime.now().strftime('%H:%M:%S')}")
             print("=" * 70)
             print()
+            if event["event"] in ("TARGET_3_HIT", "STOP_LOSS_HIT"):
+                trade_closed(event["symbol"])
+                return
 
-        history = get_history(market["symbol"], "1m")
-        print(market["symbol"], len(history))
-        if history:
-            print(history[-1])
         indicators = self.calculate_indicators(market)
-        print(indicators["1m"])
         trade = self.calculate_trade(indicators)
 
         if trade is None:
             return
 
         self.print_trade(trade)
+
+    def on_message(self, message):
+
+        market = self.process_market(message)
+
+        if market is None:
+            return
+
+        self.process_completed_candle(market)
 
     def on_error(self, *args):
         print("ERROR:", args)

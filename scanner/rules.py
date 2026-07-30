@@ -1,5 +1,6 @@
 from scanner.settings import *
 
+
 def is_buy(direction):
     return direction.upper() == "BUY"
 
@@ -7,17 +8,32 @@ def is_buy(direction):
 def is_sell(direction):
     return direction.upper() == "SELL"
 
+
 def ema_rule(indicators, direction="BUY"):
     ema9 = indicators.get("ema9")
     ema20 = indicators.get("ema20")
 
-    if ema9 is None or ema20 is None:
+    ema9_previous = indicators.get("ema9_previous")
+    ema20_previous = indicators.get("ema20_previous")
+
+    if (
+        ema9 is None
+        or ema20 is None
+        or ema9_previous is None
+        or ema20_previous is None
+    ):
         return False
 
     if is_buy(direction):
-        return ema9 > ema20
+        return (
+            ema9_previous <= ema20_previous
+            and ema9 > ema20
+        )
 
-    return ema9 < ema20
+    return (
+        ema9_previous >= ema20_previous
+        and ema9 < ema20
+    )
 
 
 def vwap_rule(indicators, direction="BUY"):
@@ -109,10 +125,12 @@ def high_low_rule(indicators, direction="BUY"):
     if ltp is None or day_high is None or day_low is None:
         return False
 
-    if is_buy(direction):
-        return ltp > (day_high + day_low) / 2
+    midpoint = (day_high + day_low) / 2
 
-    return ltp < (day_high + day_low) / 2
+    if is_buy(direction):
+        return ltp > midpoint
+
+    return ltp < midpoint
 
 
 def rsi_rule(indicators, direction="BUY"):

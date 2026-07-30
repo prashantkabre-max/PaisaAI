@@ -1,4 +1,4 @@
-from indicators.ema import calculate_ema
+from indicators.ema import calculate_ema_values
 from indicators.vwap import calculate_vwap
 from indicators.volume import calculate_volume_metrics
 from indicators.rsi import calculate_rsi
@@ -14,14 +14,13 @@ def calculate_all_indicators(candles, symbol=None):
     Calculate all indicators used by PaisaAI.
 
     Supports:
-    - Single timeframe (existing behaviour)
-    - Multi-timeframe dictionary (Module 7)
+    - Single timeframe
+    - Multi-timeframe dictionary
     """
 
     if not candles:
         return {}
 
-    # Module 7: Multi-Timeframe support
     if isinstance(candles, dict):
         results = {}
 
@@ -33,29 +32,29 @@ def calculate_all_indicators(candles, symbol=None):
 
         return results
 
-    ema9 = calculate_ema(candles, 9)
-    ema20 = calculate_ema(candles, 20)
+    ema9_data = calculate_ema_values(candles, 9)
+    ema20_data = calculate_ema_values(candles, 20)
+
+    ema9 = ema9_data["current"] if ema9_data else None
+    ema20 = ema20_data["current"] if ema20_data else None
+
+    ema9_previous = ema9_data["previous"] if ema9_data else None
+    ema20_previous = ema20_data["previous"] if ema20_data else None
 
     vwap = calculate_vwap(candles)
-
     volume = calculate_volume_metrics(candles)
-
     rsi = calculate_rsi(candles)
-
     macd = calculate_macd(candles)
-
     atr = calculate_atr(candles)
-
     adx = calculate_adx(candles)
-
     supertrend = calculate_supertrend(candles)
-
     orb = calculate_orb(symbol, candles) if symbol else None
 
     return {
-
         "ema9": ema9,
+        "ema9_previous": ema9_previous,
         "ema20": ema20,
+        "ema20_previous": ema20_previous,
 
         "vwap": vwap,
 

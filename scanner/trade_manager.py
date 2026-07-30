@@ -1,5 +1,6 @@
 """
 PaisaAI Trade Lifecycle Manager
+Stable Scanner V2
 """
 
 from datetime import datetime
@@ -9,8 +10,8 @@ _active_trades = {}
 
 def register_trade(trade):
     """
-    Register a new active trade.
-    Returns True if registered, False if already active.
+    Register a new trade.
+    Only one active trade per symbol.
     """
 
     symbol = trade["symbol"]
@@ -38,8 +39,11 @@ def register_trade(trade):
 
 def update_trade(symbol, price):
     """
-    Update an active trade using the latest market price.
-    Returns an event dictionary when something important happens.
+    Update an active trade.
+
+    Trade remains ACTIVE until:
+      • Target 3 is achieved, OR
+      • Stop Loss is hit
     """
 
     if symbol not in _active_trades:
@@ -49,15 +53,15 @@ def update_trade(symbol, price):
 
     if trade["action"] == "BUY":
 
-        if not trade["target1_hit"] and price >= trade["target1"]:
+        if (not trade["target1_hit"]) and price >= trade["target1"]:
             trade["target1_hit"] = True
             return {"symbol": symbol, "event": "TARGET_1_HIT"}
 
-        if not trade["target2_hit"] and price >= trade["target2"]:
+        if trade["target1_hit"] and (not trade["target2_hit"]) and price >= trade["target2"]:
             trade["target2_hit"] = True
             return {"symbol": symbol, "event": "TARGET_2_HIT"}
 
-        if not trade["target3_hit"] and price >= trade["target3"]:
+        if trade["target2_hit"] and (not trade["target3_hit"]) and price >= trade["target3"]:
             trade["target3_hit"] = True
             del _active_trades[symbol]
             return {"symbol": symbol, "event": "TARGET_3_HIT"}
@@ -68,15 +72,15 @@ def update_trade(symbol, price):
 
     else:  # SELL
 
-        if not trade["target1_hit"] and price <= trade["target1"]:
+        if (not trade["target1_hit"]) and price <= trade["target1"]:
             trade["target1_hit"] = True
             return {"symbol": symbol, "event": "TARGET_1_HIT"}
 
-        if not trade["target2_hit"] and price <= trade["target2"]:
+        if trade["target1_hit"] and (not trade["target2_hit"]) and price <= trade["target2"]:
             trade["target2_hit"] = True
             return {"symbol": symbol, "event": "TARGET_2_HIT"}
 
-        if not trade["target3_hit"] and price <= trade["target3"]:
+        if trade["target2_hit"] and (not trade["target3_hit"]) and price <= trade["target3"]:
             trade["target3_hit"] = True
             del _active_trades[symbol]
             return {"symbol": symbol, "event": "TARGET_3_HIT"}
