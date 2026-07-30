@@ -22,6 +22,7 @@ def register_trade(trade):
 
     _active_trades[symbol] = {
         "action": trade["action"],
+        "display_symbol": trade.get("display_symbol", symbol),
         "entry": risk["entry"],
         "stop_loss": risk["stop_loss"],
         "target1": risk["target1"],
@@ -47,43 +48,50 @@ def update_trade(symbol, price):
 
     trade = _active_trades[symbol]
 
+    def event(name):
+        return {
+            "symbol": symbol,
+            "display_symbol": trade["display_symbol"],
+            "event": name,
+        }
+
     if trade["action"] == "BUY":
 
         if not trade["target1_hit"] and price >= trade["target1"]:
             trade["target1_hit"] = True
-            return {"symbol": symbol, "event": "TARGET_1_HIT"}
+            return event("TARGET_1_HIT")
 
         if not trade["target2_hit"] and price >= trade["target2"]:
             trade["target2_hit"] = True
-            return {"symbol": symbol, "event": "TARGET_2_HIT"}
+            return event("TARGET_2_HIT")
 
         if not trade["target3_hit"] and price >= trade["target3"]:
             trade["target3_hit"] = True
             del _active_trades[symbol]
-            return {"symbol": symbol, "event": "TARGET_3_HIT"}
+            return event("TARGET_3_HIT")
 
         if price <= trade["stop_loss"]:
             del _active_trades[symbol]
-            return {"symbol": symbol, "event": "STOP_LOSS_HIT"}
+            return event("STOP_LOSS_HIT")
 
-    else:  # SELL
+    else:
 
         if not trade["target1_hit"] and price <= trade["target1"]:
             trade["target1_hit"] = True
-            return {"symbol": symbol, "event": "TARGET_1_HIT"}
+            return event("TARGET_1_HIT")
 
         if not trade["target2_hit"] and price <= trade["target2"]:
             trade["target2_hit"] = True
-            return {"symbol": symbol, "event": "TARGET_2_HIT"}
+            return event("TARGET_2_HIT")
 
         if not trade["target3_hit"] and price <= trade["target3"]:
             trade["target3_hit"] = True
             del _active_trades[symbol]
-            return {"symbol": symbol, "event": "TARGET_3_HIT"}
+            return event("TARGET_3_HIT")
 
         if price >= trade["stop_loss"]:
             del _active_trades[symbol]
-            return {"symbol": symbol, "event": "STOP_LOSS_HIT"}
+            return event("STOP_LOSS_HIT")
 
     return None
 

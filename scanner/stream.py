@@ -239,23 +239,23 @@ class LiveStreamer:
             market["symbol"],
             market["ltp"],
         )
-        print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
+#         print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
 
         if event:
             print()
             print("=" * 70)
 
             if event["event"] == "TARGET_1_HIT":
-                print(f"🏆🏆 TARGET 1 HIT : {event['symbol']}")
+                print(f"🏆🏆 TARGET 1 HIT : {event.get('display_symbol', event['symbol'])}")
 
             elif event["event"] == "TARGET_2_HIT":
-                print(f"🥈🥈 TARGET 2 HIT : {event['symbol']}")
+                print(f"🥈🥈 TARGET 2 HIT : {event.get('display_symbol', event['symbol'])}")
 
             elif event["event"] == "TARGET_3_HIT":
-                print(f"👑👑👑 TARGET 3 ACHIEVED : {event['symbol']}")
+                print(f"👑👑👑 TARGET 3 ACHIEVED : {event.get('display_symbol', event['symbol'])}")
 
             elif event["event"] == "STOP_LOSS_HIT":
-                print(f"😭😭 STOP LOSS HIT : {event['symbol']}")
+                print(f"😭😭 STOP LOSS HIT : {event.get('display_symbol', event['symbol'])}")
 
             print(f"🕒 Time : {datetime.now().strftime('%H:%M:%S')}")
             print("=" * 70)
