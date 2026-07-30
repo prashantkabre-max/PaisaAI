@@ -65,6 +65,8 @@ def calculate_score(indicators, direction="BUY"):
         grade = "A+"
     elif score >= 75:
         grade = "A"
+    elif score >= 60:
+        grade = "A-"
     else:
         grade = "IGNORE"
 

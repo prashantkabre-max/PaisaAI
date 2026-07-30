@@ -5,7 +5,6 @@ import traceback
 from datetime import datetime
 
 from indicators.engine import calculate_all_indicators
-from scanner.mtf import calculate_mtf_score
 
 from scanner.watchlist import get_watchlist
 from scanner.ranking import print_ranking
@@ -96,37 +95,24 @@ class LiveStreamer:
             )
 
         all_indicators = calculate_all_indicators(
-            history,
+            history["1m"],
             market["symbol"],
         )
 
-        timeframe_indicators = {}
+        return calculate_indicators(
+            market,
+            all_indicators,
+        )
 
-        for timeframe, indicator_values in all_indicators.items():
+    def calculate_trade(self, indicators):
 
-            timeframe_indicators[timeframe] = calculate_indicators(
-                market,
-                indicator_values,
-            )
+        from scanner.scoring import calculate_score
 
-        return timeframe_indicators
-
-
-    def calculate_trade(self, timeframe_indicators):
-
-        if timeframe_indicators is None:
+        if indicators is None:
             return None
 
-        buy_score = calculate_mtf_score(
-            timeframe_indicators,
-            "BUY",
-        )
-
-        sell_score = calculate_mtf_score(
-            timeframe_indicators,
-            "SELL",
-        )
-        print(f"DEBUG {timeframe_indicators['1m']['symbol']} BUY={buy_score['confidence']}({buy_score['grade']}) SELL={sell_score['confidence']}({sell_score['grade']})")
+        buy_score = calculate_score(indicators, "BUY")
+        sell_score = calculate_score(indicators, "SELL")
 
         if buy_score is None and sell_score is None:
             return None
@@ -136,16 +122,10 @@ class LiveStreamer:
         else:
             score_result = buy_score
 
-        indicators = timeframe_indicators.get("1m")
-
-        if indicators is None:
-            return None
-
         return evaluate_trade(
             indicators,
             score_result,
         )
-
 
     def print_trade(self, trade):
 
@@ -259,7 +239,7 @@ class LiveStreamer:
             market["symbol"],
             market["ltp"],
         )
-       # print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
+        print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
 
         if event:
             print()
@@ -281,12 +261,8 @@ class LiveStreamer:
             print("=" * 70)
             print()
 
-        history = get_history(market["symbol"], "1m")
-        print(market["symbol"], len(history))
-        if history:
-            print(history[-1])
         indicators = self.calculate_indicators(market)
-        print(indicators["1m"])
+
         trade = self.calculate_trade(indicators)
 
         if trade is None:

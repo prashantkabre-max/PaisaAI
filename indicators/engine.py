@@ -12,26 +12,10 @@ from indicators.orb import calculate_orb
 def calculate_all_indicators(candles, symbol=None):
     """
     Calculate all indicators used by PaisaAI.
-
-    Supports:
-    - Single timeframe (existing behaviour)
-    - Multi-timeframe dictionary (Module 7)
     """
 
     if not candles:
         return {}
-
-    # Module 7: Multi-Timeframe support
-    if isinstance(candles, dict):
-        results = {}
-
-        for timeframe, tf_candles in candles.items():
-            results[timeframe] = calculate_all_indicators(
-                tf_candles,
-                symbol,
-            )
-
-        return results
 
     ema9 = calculate_ema(candles, 9)
     ema20 = calculate_ema(candles, 20)
