@@ -127,7 +127,7 @@ class LiveStreamer:
             score_result,
         )
 
-    def print_trade(self, trade):
+    def print_trade(self, trade, replay_mode=False, replay_timestamp=None):
 
         if trade is None:
             return
@@ -135,15 +135,20 @@ class LiveStreamer:
         if trade["grade"] == "IGNORE":
             return
 
-        alert = process_alert(trade)
+        if replay_mode:
+            alert = {
+                "generated_at": replay_timestamp,
+            }
+        else:
+            alert = process_alert(trade)
 
-        # If there is no alert, this trade is already active.
-        # Don't print or rank it again.
-        if alert is None:
-            return
+            # If there is no alert, this trade is already active.
+            # Don't print or rank it again.
+            if alert is None:
+                return
 
-        if not register_trade(trade):
-            return
+            if not register_trade(trade):
+                return
 
         #print(trade)
 
