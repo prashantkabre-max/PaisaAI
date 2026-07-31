@@ -1,11 +1,13 @@
 from scanner.settings import *
 
+
 def is_buy(direction):
     return direction.upper() == "BUY"
 
 
 def is_sell(direction):
     return direction.upper() == "SELL"
+
 
 def ema_rule(indicators, direction="BUY"):
     ema9 = indicators.get("ema9")
@@ -68,13 +70,18 @@ def supertrend_rule(indicators, direction="BUY"):
 
 
 def rvol_rule(indicators):
+    """
+    PaisaAI Core RVOL Rule.
+
+    Confirmation:
+        RVOL >= 1.20
+    """
     rvol = indicators.get("rvol")
 
     if rvol is None:
         return False
 
-    return rvol >= 1.2
-
+    return rvol >= 1.20
 
 def price_change_rule(indicators, direction="BUY"):
     change = indicators.get("change_percent")
@@ -109,10 +116,12 @@ def high_low_rule(indicators, direction="BUY"):
     if ltp is None or day_high is None or day_low is None:
         return False
 
-    if is_buy(direction):
-        return ltp > (day_high + day_low) / 2
+    midpoint = (day_high + day_low) / 2
 
-    return ltp < (day_high + day_low) / 2
+    if is_buy(direction):
+        return ltp > midpoint
+
+    return ltp < midpoint
 
 
 def rsi_rule(indicators, direction="BUY"):

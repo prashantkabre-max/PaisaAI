@@ -21,22 +21,37 @@ def parse_market_data(message):
 
             candle = ohlc[0] if ohlc else {}
 
-            current_vtt = int(market.get("vtt", 0))
-            previous_vtt = _last_vtt.get(instrument_key, current_vtt)
+            ltp = ltpc.get("ltp")
 
-            incremental_volume = max(0, current_vtt - previous_vtt)
+            # Upstox LTPC `cp` = previous trading-session close price.
+            previous_close = ltpc.get("cp")
 
+            current_vtt = int(market.get("vtt", 0) or 0)
+            previous_vtt = _last_vtt.get(
+                instrument_key,
+                current_vtt,
+            )
+
+            incremental_volume = max(
+                0,
+                current_vtt - previous_vtt,
+            )
 
             _last_vtt[instrument_key] = current_vtt
 
             parsed.append({
                 "symbol": instrument_key,
-                "ltp": ltpc.get("ltp"),
-                "change_percent": ltpc.get("cp"),
+                "ltp": ltp,
+
+                # Explicit professional price-change baseline
+                "previous_close": previous_close,
+
                 "open": candle.get("open"),
                 "high": candle.get("high"),
                 "low": candle.get("low"),
                 "close": candle.get("close"),
+
+                # Incremental traded volume for candle builder
                 "volume": incremental_volume,
             })
 
