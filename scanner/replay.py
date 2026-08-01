@@ -170,6 +170,7 @@ class ReplayEngine:
 
             results.append({
                 "symbol": symbol,
+                "display_symbol": indicators["display_symbol"],
                 "timestamp": current.get("timestamp"),
                 "direction": trade["action"],
                 "grade": trade["grade"],
@@ -201,7 +202,7 @@ class ReplayEngine:
 
             trade = {
                 "symbol": result["symbol"],
-                "display_symbol": result["symbol"],
+                "display_symbol": result["display_symbol"],
                 "action": result["direction"],
                 "grade": result["grade"],
                 "confidence": result["confidence"],
