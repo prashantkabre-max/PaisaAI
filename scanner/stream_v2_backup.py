@@ -7,12 +7,10 @@ from datetime import datetime
 from indicators.engine import calculate_all_indicators
 
 from scanner.watchlist import get_watchlist
+from scanner.ranking import print_ranking
 
 from scanner.decision import evaluate_trade
 from scanner.alerts import process_alert
-from scanner.runtime import MARKET_STATE
-from scanner.signal_state import SignalState
-
 from scanner.trade_manager import (
     register_trade,
     update_trade,
@@ -35,8 +33,6 @@ class LiveStreamer:
 
         self.watchlist = get_watchlist()
         self.live_trades = []
-        self.signal_state = SignalState()
-
 
         self.streamer = upstox_client.MarketDataStreamerV3(
             api_client,
@@ -175,7 +171,7 @@ class LiveStreamer:
 
         signal_icon = "🟢" if trade["action"] == "BUY" else "🔴"
 
-        print("=" * 82)
+        print("=" * 70)
 
         grade = trade["grade"]
         action = trade["action"]
@@ -188,7 +184,7 @@ class LiveStreamer:
         print(title)
         print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
 
-        print("=" * 82)
+        print("=" * 70)
 
         if trade["risk"]:
             risk = trade["risk"]
@@ -233,7 +229,7 @@ class LiveStreamer:
         if alert.get("generated_at"):
             print(f"🕒 Time           : {alert['generated_at']}")
 
-        print("=" * 82)
+        print("=" * 70)
 
 
 
@@ -252,7 +248,7 @@ class LiveStreamer:
 
         if event:
             print()
-            print("=" * 82)
+            print("=" * 70)
 
             if event["event"] == "TARGET_1_HIT":
                 print(f"🏆🏆 TARGET 1 HIT : {event.get('display_symbol', event['symbol'])}")
@@ -267,32 +263,15 @@ class LiveStreamer:
                 print(f"😭😭 STOP LOSS HIT : {event.get('display_symbol', event['symbol'])}")
 
             print(f"🕒 Time : {datetime.now().strftime('%H:%M:%S')}")
-            print("=" * 82)
+            print("=" * 70)
             print()
 
         indicators = self.calculate_indicators(market)
-
-        if market["symbol"] == "NSE_INDEX|Nifty 50":
-            MARKET_STATE["NIFTY"] = indicators
-        elif market["symbol"] == "NSE_INDEX|Nifty Bank":
-            MARKET_STATE["BANKNIFTY"] = indicators
-
 
         trade = self.calculate_trade(indicators)
 
         if trade is None:
             return
-
-
-        confirmed = self.signal_state.confirm(
-            trade["symbol"],
-            trade["action"],
-        )
-
-        if confirmed is None:
-            return
-
-        trade["action"] = confirmed
 
         self.print_trade(trade)
 

@@ -4,7 +4,6 @@ PaisaAI Unified Decision Engine
 
 from scanner.risk import calculate_risk
 from scanner.trade_timing import evaluate_trade_timing
-from scanner.market_context import get_market_context
 
 
 def evaluate_trade(

@@ -7,18 +7,6 @@ class RankingEngine:
     def __init__(self):
         self.trades = []
 
-    def _sort_key(self, trade):
-
-        market = trade.get("market_context") or {}
-
-        return (
-            1 if trade.get("grade") == "A+" else 0,
-            trade.get("confidence", 0),
-            market.get("strength", 0),
-            trade.get("risk", {}).get("risk_reward", 0)
-            if trade.get("risk") else 0,
-        )
-
     def add_trade(self, trade):
 
         if trade is None:
@@ -30,7 +18,7 @@ class RankingEngine:
         self.trades.append(trade)
 
         self.trades.sort(
-            key=self._sort_key,
+            key=lambda t: t.get("confidence", 0),
             reverse=True,
         )
 

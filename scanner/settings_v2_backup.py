@@ -54,36 +54,3 @@ ADX_PERIOD = 14
 
 SUPERTREND_PERIOD = 10
 SUPERTREND_MULTIPLIER = 3
-# ==========================
-# Rule Thresholds
-# ==========================
-EMA_MIN_GAP_PERCENT = 0.10
-ADX_MIN = 20
-RSI_BUY_MIN = 52
-RSI_BUY_MAX = 72
-RSI_SELL_MIN = 28
-RSI_SELL_MAX = 48
-RVOL_MIN = 1.20
-
-# ==========================
-# Scoring Weights
-# ==========================
-
-EMA_WEIGHT = 20
-VWAP_WEIGHT = 15
-SUPERTREND_WEIGHT = 15
-RVOL_WEIGHT = 15
-ADX_WEIGHT = 10
-MACD_WEIGHT = 10
-RSI_WEIGHT = 5
-PRICE_CHANGE_WEIGHT = 5
-OPEN_WEIGHT = 3
-HIGH_LOW_WEIGHT = 2
-
-# ==========================
-# Risk Management
-# ==========================
-ATR_STOP_MULTIPLIER = 2.0
-ATR_TARGET1_MULTIPLIER = 4.0
-ATR_TARGET2_MULTIPLIER = 6.0
-ATR_TARGET3_MULTIPLIER = 8.0

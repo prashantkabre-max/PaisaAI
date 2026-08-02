@@ -81,7 +81,7 @@ def rvol_rule(indicators):
     if rvol is None:
         return False
 
-    return rvol >= RVOL_MIN
+    return rvol >= 1.20
 
 def price_change_rule(indicators, direction="BUY"):
     change = indicators.get("change_percent")
@@ -131,6 +131,6 @@ def rsi_rule(indicators, direction="BUY"):
         return False
 
     if is_buy(direction):
-        return RSI_BUY_MIN <= rsi <= RSI_BUY_MAX
+        return 52 <= rsi <= 72
 
-    return RSI_SELL_MIN <= rsi <= RSI_SELL_MAX
+    return 28 <= rsi <= 48

@@ -20,19 +20,19 @@ def calculate_risk(indicators, signal):
 
     if signal == "BUY":
 
-        stop_loss = round(entry - atr, 2)
+        stop_loss = round(entry - (atr * ATR_STOP_MULTIPLIER), 2)
 
-        target1 = round(entry + (atr * 2), 2)
-        target2 = round(entry + (atr * 3), 2)
-        target3 = round(entry + (atr * 4), 2)
+        target1 = round(entry + (atr * ATR_TARGET1_MULTIPLIER), 2)
+        target2 = round(entry + (atr * ATR_TARGET2_MULTIPLIER), 2)
+        target3 = round(entry + (atr * ATR_TARGET3_MULTIPLIER), 2)
 
     elif signal == "SELL":
 
-        stop_loss = round(entry + atr, 2)
+        stop_loss = round(entry + (atr * ATR_STOP_MULTIPLIER), 2)
 
-        target1 = round(entry - (atr * 2), 2)
-        target2 = round(entry - (atr * 3), 2)
-        target3 = round(entry - (atr * 4), 2)
+        target1 = round(entry - (atr * ATR_TARGET1_MULTIPLIER), 2)
+        target2 = round(entry - (atr * ATR_TARGET2_MULTIPLIER), 2)
+        target3 = round(entry - (atr * ATR_TARGET3_MULTIPLIER), 2)
 
     else:
         return None
