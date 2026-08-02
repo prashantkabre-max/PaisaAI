@@ -1,5 +1,5 @@
 from scanner.indicator_state import IndicatorState
-from scanner.indicator_state import IndicatorState
+from scanner.indicators import calculate_indicators
 from scanner.scoring import calculate_score
 from scanner.decision import evaluate_trade
 
@@ -14,7 +14,7 @@ class ReplayRunner:
     """
 
     def __init__(self):
-        self.state = indicatorstate()
+        self.state = IndicatorState()
 
     def _calculate_indicators(self, symbol, history):
         return self.state.calculate(
@@ -25,6 +25,9 @@ class ReplayRunner:
     def evaluate(self, symbol, history, market):
 
         all_indicators = self._calculate_indicators(
+
+        # Replay V2 incremental engine
+
             symbol,
             history,
         )
@@ -59,4 +62,4 @@ class ReplayRunner:
         )
 
     def clear_cache(self):
-        self._indicator_cache.clear()
+        self.state.clear()

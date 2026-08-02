@@ -1,5 +1,6 @@
-from indicators.engine import calculate_all_indicators
+from scanner.replay_indicators.engine import calculate_all_indicators
 from scanner.indicators import calculate_indicators
+from scanner.replay_runner import ReplayRunner
 from scanner.scoring import calculate_score
 from scanner.decision import evaluate_trade
 
@@ -14,6 +15,7 @@ class ReplayEngine:
 
     def __init__(self, min_history=50):
         self.min_history = min_history
+        self.runner = ReplayRunner()
 
     @staticmethod
     def _date_of(candle):

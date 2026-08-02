@@ -2,27 +2,33 @@ from scanner.replay_indicators.engine import calculate_all_indicators
 
 
 class IndicatorState:
-    """
-    V2-B indicator state manager.
-
-    For now this is a compatibility layer that preserves the current
-    behaviour. Future versions will replace the full-history calculation
-    with incremental indicator updates.
-    """
 
     def __init__(self):
-        self._cache = {}
+        self._symbol_cache = {}
 
     def clear(self):
-        self._cache.clear()
+        self._symbol_cache.clear()
 
     def calculate(self, symbol, history):
-        key = (symbol, len(history))
 
-        if key not in self._cache:
-            self._cache[key] = calculate_all_indicators(
-                history,
-                symbol,
-            )
+        count = len(history)
 
-        return self._cache[key]
+        state = self._symbol_cache.get(symbol)
+
+        if (
+            state is not None
+            and state["count"] == count
+        ):
+            return state["result"]
+
+        result = calculate_all_indicators(
+            history,
+            symbol,
+        )
+
+        self._symbol_cache[symbol] = {
+            "count": count,
+            "result": result,
+        }
+
+        return result

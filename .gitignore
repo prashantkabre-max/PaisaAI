@@ -1,6 +1,7 @@
+*.tar.gz
+*.zip
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.venv/
-.env
+logs/
+reports/
+backup*/
