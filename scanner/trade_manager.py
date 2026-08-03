@@ -23,6 +23,7 @@ def register_trade(trade):
     _active_trades[symbol] = {
         "action": trade["action"],
         "display_symbol": trade.get("display_symbol", symbol),
+        "trade_number": trade["trade_number"],
         "entry": risk["entry"],
         "stop_loss": risk["stop_loss"],
         "target1": risk["target1"],
@@ -49,10 +50,17 @@ def update_trade(symbol, price):
     trade = _active_trades[symbol]
 
     def event(name):
+        duration = datetime.now() - trade["opened_at"]
+        minutes = int(duration.total_seconds() // 60)
+        seconds = int(duration.total_seconds() % 60)
+
         return {
             "symbol": symbol,
             "display_symbol": trade["display_symbol"],
+            "trade_number": trade["trade_number"],
             "event": name,
+            "duration": f"{minutes:02d}m {seconds:02d}s",
+            "exit_reason": "TARGET 3" if name == "TARGET_3_HIT" else "STOP LOSS",
         }
 
     if trade["action"] == "BUY":

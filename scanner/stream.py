@@ -35,6 +35,24 @@ class LiveStreamer:
 
         self.watchlist = get_watchlist()
         self.live_trades = []
+        self.trade_number = 0
+        self.session_start = datetime.now()
+        self.last_summary = datetime.now()
+
+        self.session_stats = {
+            "total": 0,
+            "buy": 0,
+            "sell": 0,
+            "a_plus": 0,
+            "a": 0,
+            "active": 0,
+            "target1": 0,
+            "target2": 0,
+            "target3": 0,
+            "stoploss": 0,
+            "wins": 0,
+            "losses": 0,
+        }
         self.signal_state = SignalState()
 
 
@@ -151,12 +169,28 @@ class LiveStreamer:
             if alert is None:
                 return
 
+            self.trade_number += 1
+            trade["trade_number"] = self.trade_number
             if not register_trade(trade):
                 return
+
+            self.session_stats["total"] += 1
+            self.session_stats["active"] += 1
+
+            if trade["action"] == "BUY":
+                self.session_stats["buy"] += 1
+            else:
+                self.session_stats["sell"] += 1
+
+            if trade["grade"] == "A+":
+                self.session_stats["a_plus"] += 1
+            elif trade["grade"] == "A":
+                self.session_stats["a"] += 1
 
         #print(trade)
 
         ranking_trade = {
+            "trade_number": trade["trade_number"],
             "symbol": trade["symbol"],
             "action": trade["action"],
             "grade": trade["grade"],
@@ -187,6 +221,7 @@ class LiveStreamer:
 
         print(title)
         print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
+        print(f"🔢 Trade No.     : {trade['trade_number']}")
 
         print("=" * 82)
 
@@ -231,6 +266,7 @@ class LiveStreamer:
             print(f"❌ Missing        : {', '.join(trade['failed'])}")
 
         if alert.get("generated_at"):
+            print()
             print(f"🕒 Time           : {alert['generated_at']}")
 
         print("=" * 82)
@@ -255,18 +291,38 @@ class LiveStreamer:
             print("=" * 82)
 
             if event["event"] == "TARGET_1_HIT":
-                print(f"🏆🏆 TARGET 1 HIT : {event.get('display_symbol', event['symbol'])}")
+                self.session_stats["target1"] += 1
+                self.session_stats["wins"] += 1
+                print("🏆🏆 TARGET 1 HIT")
 
             elif event["event"] == "TARGET_2_HIT":
-                print(f"🥈🥈 TARGET 2 HIT : {event.get('display_symbol', event['symbol'])}")
+                self.session_stats["target2"] += 1
+                print("🥈🥈 TARGET 2 HIT")
 
             elif event["event"] == "TARGET_3_HIT":
-                print(f"👑👑👑 TARGET 3 ACHIEVED : {event.get('display_symbol', event['symbol'])}")
+                self.session_stats["target3"] += 1
+                self.session_stats["active"] -= 1
+                print("👑👑👑 TARGET 3 ACHIEVED")
+                print()
+                print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
+                print()
 
             elif event["event"] == "STOP_LOSS_HIT":
-                print(f"😭😭 STOP LOSS HIT : {event.get('display_symbol', event['symbol'])}")
+                self.session_stats["stoploss"] += 1
+                self.session_stats["losses"] += 1
+                self.session_stats["active"] -= 1
+                print("😭😭 STOP LOSS HIT")
+                print()
+                print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
+                print()
 
-            print(f"🕒 Time : {datetime.now().strftime('%H:%M:%S')}")
+            print()
+            print(f"🔢 Trade No. : {event['trade_number']}")
+            print(f"📊 Stock     : {event['display_symbol']}")
+            if event["event"] in ("TARGET_3_HIT", "STOP_LOSS_HIT"):
+                print(f"🏁 Exit      : {event['exit_reason']}")
+                print(f"⏱ Duration  : {event['duration']}")
+            print(f"🕒 Time      : {datetime.now().strftime('%H:%M:%S')}")
             print("=" * 82)
             print()
 
@@ -296,6 +352,10 @@ class LiveStreamer:
 
         self.print_trade(trade)
 
+        if (datetime.now() - self.last_summary).total_seconds() >= 600:
+            self.print_session_summary()
+            self.last_summary = datetime.now()
+
     def on_error(self, *args):
         print("ERROR:", args)
         traceback.print_exc()
@@ -306,3 +366,34 @@ class LiveStreamer:
     def start(self):
         print("Connecting...")
         self.streamer.connect()
+
+    def print_session_summary(self):
+        closed = self.session_stats["wins"] + self.session_stats["losses"]
+
+        win_rate = 0.0
+        if closed > 0:
+            win_rate = (self.session_stats["wins"] / closed) * 100
+
+        print()
+        print("=" * 78)
+        print(f"📊 PAISAAI LIVE SESSION SUMMARY ({datetime.now().strftime('%H:%M')})")
+        print()
+        print(f"📈 Total Trades Generated : {self.session_stats['total']}")
+        print(f"🟢 Active Trades          : {self.session_stats['active']}")
+        print()
+        print(f"🏆 Target 1 Hit           : {self.session_stats['target1']}")
+        print(f"🥈 Target 2 Hit           : {self.session_stats['target2']}")
+        print(f"👑 Target 3 Hit           : {self.session_stats['target3']}")
+        print(f"😭 Stop Loss Hit          : {self.session_stats['stoploss']}")
+        print()
+        print(f"📦 Closed Trades          : {closed}")
+        print(f"🔥 Win Rate (Closed)      : {win_rate:.1f}%")
+        print()
+        print(f"⭐ A+ Trades              : {self.session_stats['a_plus']}")
+        print(f"🥇 A Trades               : {self.session_stats['a']}")
+        print()
+        print(f"📊 BUY Trades             : {self.session_stats['buy']}")
+        print(f"📉 SELL Trades            : {self.session_stats['sell']}")
+        print("=" * 78)
+        print()
+
