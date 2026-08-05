@@ -25,10 +25,20 @@ def calculate_volume_metrics(candles, lookback=20):
     if not candles or len(candles) < (lookback + 1):
         return empty
 
-    try:
-        current_volume = float(candles[-1].get("volume", 0) or 0)
-    except Exception:
-        current_volume = 0.0
+    # Industry standard:
+    # Use previous completed candle volume for RVOL.
+    current_volume = 0.0
+
+    # Use the most recent completed candle that has non-zero volume.
+    for candle in reversed(candles[:-1]):
+        try:
+            v = float(candle.get("volume", 0) or 0)
+        except Exception:
+            continue
+
+        if v > 0:
+            current_volume = v
+            break
 
     previous = []
 
