@@ -59,10 +59,10 @@ SUPERTREND_MULTIPLIER = 3
 # ==========================
 EMA_MIN_GAP_PERCENT = 0.10
 ADX_MIN = 20
-RSI_BUY_MIN = 52
-RSI_BUY_MAX = 72
-RSI_SELL_MIN = 28
-RSI_SELL_MAX = 48
+RSI_BUY_MIN = 20
+RSI_BUY_MAX = 80
+RSI_SELL_MIN = 20
+RSI_SELL_MAX = 80
 RVOL_MIN = 1.20
 
 # ==========================
@@ -87,3 +87,24 @@ ATR_STOP_MULTIPLIER = 2.0
 ATR_TARGET1_MULTIPLIER = 4.0
 ATR_TARGET2_MULTIPLIER = 6.0
 ATR_TARGET3_MULTIPLIER = 8.0
+
+# ==========================
+# Multi Time Frame (MTF)
+# ==========================
+
+MTF_WEIGHTS = {
+    "1m": 25,
+    "3m": 20,
+    "5m": 20,
+    "15m": 15,
+    "30m": 10,
+    "60m": 10,
+}
+
+# Minimum confidence required
+# for a timeframe to be considered aligned
+MTF_ALIGNMENT_MIN_SCORE = 75
+
+# Reserved for future divergence filter
+MTF_MIN_SCORE_DIFFERENCE = 10
+

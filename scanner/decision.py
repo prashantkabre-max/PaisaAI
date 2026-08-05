@@ -60,6 +60,8 @@ def evaluate_trade(
 
         "passed": score_result.get("passed", []),
         "failed": score_result.get("failed", []),
+        "aligned_timeframes": score_result.get("aligned_timeframes", []),
+        "failed_timeframes": score_result.get("failed_timeframes", []),
 
         "risk": risk,
 

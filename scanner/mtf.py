@@ -31,10 +31,14 @@ def calculate_mtf_score(timeframe_indicators, direction="BUY"):
     failed = []
     timeframe_scores = {}
 
+    base_result = None
+
     for tf, indicators in timeframe_indicators.items():
 
         result = calculate_score(indicators, direction)
-        print(tf, direction, result["confidence"], result["passed"])
+
+        if tf == "1m":
+            base_result = result
 
         timeframe_scores[tf] = result
 
@@ -57,14 +61,15 @@ def calculate_mtf_score(timeframe_indicators, direction="BUY"):
         grade = "A+"
     elif confidence >= 75:
         grade = "A"
-
     else:
         grade = "IGNORE"
 
     return {
         "grade": grade,
         "confidence": confidence,
-        "passed": passed,
-        "failed": failed,
+        "passed": base_result["passed"] if base_result else [],
+        "failed": base_result["failed"] if base_result else [],
+        "aligned_timeframes": passed,
+        "failed_timeframes": failed,
         "timeframes": timeframe_scores,
     }

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from scanner.replay_indicators.engine import calculate_all_indicators
 from scanner.indicators import calculate_indicators
 from scanner.replay_runner import ReplayRunner
@@ -16,6 +18,28 @@ class ReplayEngine:
     def __init__(self, min_history=50):
         self.min_history = min_history
         self.runner = ReplayRunner()
+
+        from scanner.stream import LiveStreamer
+
+        self.viewer = LiveStreamer.__new__(LiveStreamer)
+        self.viewer.trade_number = 0
+        self.viewer.live_trades = []
+        self.viewer.session_start = datetime.now()
+        self.viewer.last_summary = datetime.now()
+        self.viewer.session_stats = {
+            "total": 0,
+            "buy": 0,
+            "sell": 0,
+            "a_plus": 0,
+            "a": 0,
+            "active": 0,
+            "target1": 0,
+            "target2": 0,
+            "target3": 0,
+            "stoploss": 0,
+            "wins": 0,
+            "losses": 0,
+        }
 
     @staticmethod
     def _date_of(candle):
@@ -42,6 +66,7 @@ class ReplayEngine:
                 return candle.get("close")
 
         return None
+
     def _session_ohlc(self, candles, index):
         current_date = self._date_of(candles[index])
 
@@ -91,6 +116,7 @@ class ReplayEngine:
             "high": max(highs) if highs else None,
             "low": min(lows) if lows else None,
         }
+
     def replay_symbol(self, symbol, candles):
         results = []
 
@@ -140,6 +166,7 @@ class ReplayEngine:
                 "close": current.get("close"),
                 "volume": current.get("volume", 0),
             }
+
             indicators = calculate_indicators(
                 market,
                 all_indicators,
@@ -148,19 +175,10 @@ class ReplayEngine:
             if indicators is None:
                 continue
 
-            buy_score = calculate_score(
-                indicators,
-                "BUY",
-            )
+            buy_score = calculate_score(indicators, "BUY")
+            sell_score = calculate_score(indicators, "SELL")
 
-            sell_score = calculate_score(
-                indicators,
-                "SELL",
-            )
-            if sell_score["confidence"] > buy_score["confidence"]:
-                score = sell_score
-            else:
-                score = buy_score
+            score = sell_score if sell_score["confidence"] > buy_score["confidence"] else buy_score
 
             trade = evaluate_trade(
                 indicators,
@@ -182,6 +200,7 @@ class ReplayEngine:
                 "risk": trade["risk"],
                 "trade_timing": trade["trade_timing"],
                 "rvol": indicators.get("rvol"),
+                "rsi": indicators.get("rsi"),
                 "change_percent": indicators.get("change_percent"),
                 "ltp": indicators.get("ltp"),
                 "session_open": session_ohlc["open"],
@@ -200,8 +219,6 @@ class ReplayEngine:
         result = results[-1]
 
         if result["grade"] != "IGNORE":
-            from scanner.stream import LiveStreamer
-
             trade = {
                 "symbol": result["symbol"],
                 "display_symbol": result["display_symbol"],
@@ -211,12 +228,11 @@ class ReplayEngine:
                 "passed": result["passed"],
                 "failed": result["failed"],
                 "risk": result["risk"],
+                "rvol": result["rvol"],
+                "rsi": result["rsi"],
             }
 
-            viewer = LiveStreamer.__new__(LiveStreamer)
-            viewer.live_trades = []
-
-            viewer.print_trade(
+            self.viewer.print_trade(
                 trade,
                 replay_mode=True,
                 replay_timestamp=result["timestamp"],

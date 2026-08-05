@@ -7,9 +7,6 @@ def calculate_indicators(data, all_indicators=None):
 
     Price change standard:
     Daily % Change = (LTP - Previous Day Close) / Previous Day Close * 100
-
-    Upstox LTPC field `cp` represents the previous closing price.
-    The current parser carries that value in `change_percent`.
     """
 
     if data is None:
@@ -20,15 +17,11 @@ def calculate_indicators(data, all_indicators=None):
 
     ltp = data.get("ltp")
 
-    # Preferred future-safe field.
     previous_close = data.get("previous_close")
 
-    # Current PaisaAI parser stores Upstox LTPC `cp`
-    # in the field named `change_percent`.
     if previous_close is None:
         previous_close = data.get("change_percent")
 
-    # Final fallback only.
     if previous_close is None:
         previous_close = data.get("close")
 
@@ -60,7 +53,7 @@ def calculate_indicators(data, all_indicators=None):
         # VWAP
         "vwap": all_indicators.get("vwap"),
 
-        # Volume Engine V2
+        # Volume
         "current_volume": all_indicators.get("current_volume"),
         "average_volume": all_indicators.get("average_volume"),
         "rvol": all_indicators.get("rvol"),
@@ -88,4 +81,14 @@ def calculate_indicators(data, all_indicators=None):
         # Supertrend
         "supertrend": all_indicators.get("supertrend"),
         "supertrend_trend": all_indicators.get("supertrend_trend"),
+
+        # ORB
+        "orb_high": all_indicators.get("orb_high"),
+        "orb_low": all_indicators.get("orb_low"),
+        "orb_breakout": all_indicators.get("orb_breakout"),
+        "orb_breakdown": all_indicators.get("orb_breakdown"),
+
+        # Swing
+        "swing_high": all_indicators.get("swing_high"),
+        "swing_low": all_indicators.get("swing_low"),
     }

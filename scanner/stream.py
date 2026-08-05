@@ -16,6 +16,7 @@ from scanner.signal_state import SignalState
 from scanner.trade_manager import (
     register_trade,
     update_trade,
+    get_active_trades,
 )
 
 from data.candles import (
@@ -117,32 +118,46 @@ class LiveStreamer:
             )
 
         all_indicators = calculate_all_indicators(
-            history["1m"],
+            history,
             market["symbol"],
         )
 
-        return calculate_indicators(
-            market,
-            all_indicators,
+        timeframe_indicators = {}
+
+        for timeframe, indicator_values in all_indicators.items():
+            timeframe_indicators[timeframe] = calculate_indicators(
+                market,
+                indicator_values,
+            )
+
+        return timeframe_indicators
+
+    def calculate_trade(self, timeframe_indicators):
+
+        from scanner.mtf import calculate_mtf_score
+
+        if timeframe_indicators is None:
+            return None
+
+        buy_score = calculate_mtf_score(
+            timeframe_indicators,
+            "BUY",
         )
 
-    def calculate_trade(self, indicators):
-
-        from scanner.scoring import calculate_score
-
-        if indicators is None:
-            return None
-
-        buy_score = calculate_score(indicators, "BUY")
-        sell_score = calculate_score(indicators, "SELL")
-
-        if buy_score is None and sell_score is None:
-            return None
+        sell_score = calculate_mtf_score(
+            timeframe_indicators,
+            "SELL",
+        )
 
         if sell_score["confidence"] > buy_score["confidence"]:
             score_result = sell_score
         else:
             score_result = buy_score
+
+        indicators = timeframe_indicators.get("1m")
+
+        if indicators is None:
+            return None
 
         return evaluate_trade(
             indicators,
@@ -158,9 +173,14 @@ class LiveStreamer:
             return
 
         if replay_mode:
+
+            self.trade_number += 1
+            trade["trade_number"] = self.trade_number
+
             alert = {
                 "generated_at": replay_timestamp,
             }
+
         else:
             alert = process_alert(trade)
 
@@ -263,7 +283,13 @@ class LiveStreamer:
             print(f"✅ Confirmations  : {', '.join(trade['passed'])}")
 
         if trade["failed"]:
-            print(f"❌ Missing        : {', '.join(trade['failed'])}")
+            print(f"❌ Missing        : {' , '.join(trade['failed'])} | RVOL={trade.get('rvol')} | RSI={trade.get('rsi')}")
+
+        if trade.get("aligned_timeframes"):
+            print(f"🕒 MTF Alignment : {', '.join(trade['aligned_timeframes'])}")
+
+        if trade.get("failed_timeframes"):
+            print(f"⚠️ MTF Missing   : {', '.join(trade['failed_timeframes'])}")
 
         if alert.get("generated_at"):
             print()
@@ -367,7 +393,7 @@ class LiveStreamer:
         print("Connecting...")
         self.streamer.connect()
 
-    def print_session_summary(self):
+    def print_session_summary(self, summary_time=None):
         closed = self.session_stats["wins"] + self.session_stats["losses"]
 
         win_rate = 0.0
@@ -376,11 +402,29 @@ class LiveStreamer:
 
         print()
         print("=" * 78)
-        print(f"📊 PAISAAI LIVE SESSION SUMMARY ({datetime.now().strftime('%H:%M')})")
+        print(f"📊 PAISAAI LIVE SESSION SUMMARY ({(summary_time or datetime.now()).strftime('%H:%M')})")
         print()
         print(f"📈 Total Trades Generated : {self.session_stats['total']}")
         print(f"🟢 Active Trades          : {self.session_stats['active']}")
         print()
+
+        active = get_active_trades()
+
+        if active:
+            print("🟢 ACTIVE POSITIONS")
+            for trade in sorted(active.values(), key=lambda x: x["trade_number"]):
+                duration = datetime.now() - trade["opened_at"]
+                mins = int(duration.total_seconds() // 60)
+                secs = int(duration.total_seconds() % 60)
+
+                print(
+                    f"#{trade['trade_number']:02d} "
+                    f"{trade['action']:<4} "
+                    f"{trade['display_symbol']:<15} "
+                    f"⏱ {mins:02d}m {secs:02d}s"
+                )
+
+            print()
         print(f"🏆 Target 1 Hit           : {self.session_stats['target1']}")
         print(f"🥈 Target 2 Hit           : {self.session_stats['target2']}")
         print(f"👑 Target 3 Hit           : {self.session_stats['target3']}")

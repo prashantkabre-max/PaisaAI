@@ -39,6 +39,9 @@ def parse_market_data(message):
 
             _last_vtt[instrument_key] = current_vtt
 
+            if instrument_key == "NSE_EQ|HDFCBANK":
+                print(f"VTT={current_vtt} PREV={previous_vtt} INC={incremental_volume}")
+
             parsed.append({
                 "symbol": instrument_key,
                 "ltp": ltp,
