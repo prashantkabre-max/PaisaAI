@@ -1,0 +1,82 @@
+from scanner.scoring import calculate_score
+from scanner.settings import (
+    MTF_WEIGHTS,
+    MTF_ALIGNMENT_MIN_SCORE,
+    MTF_MIN_SCORE_DIFFERENCE,
+)
+
+
+def calculate_mtf_score(timeframe_indicators, direction="BUY"):
+
+    weighted_score = 0
+    max_score = 0
+
+    timeframe_scores = {}
+
+    passed_rules = {}
+    failed_rules = {}
+
+    aligned = []
+    not_aligned = []
+
+    for tf, indicators in timeframe_indicators.items():
+
+        result = calculate_score(
+            indicators,
+            direction,
+        )
+
+        timeframe_scores[tf] = result
+
+        weight = MTF_WEIGHTS.get(tf, 0)
+
+        weighted_score += result["confidence"] * weight
+        max_score += 100 * weight
+
+        if result["confidence"] >= MTF_ALIGNMENT_MIN_SCORE:
+            aligned.append(tf)
+        else:
+            not_aligned.append(tf)
+
+        for rule in result["passed"]:
+            passed_rules[rule] = passed_rules.get(rule, 0) + 1
+
+        for rule in result["failed"]:
+            failed_rules[rule] = failed_rules.get(rule, 0) + 1
+
+    confidence = 0
+
+    if max_score:
+        confidence = round(
+            (weighted_score / max_score) * 100
+        )
+
+    if confidence >= 90:
+        grade = "A+"
+    elif confidence >= 75:
+        grade = "A"
+    else:
+        grade = "IGNORE"
+
+    passed = sorted(
+        rule
+        for rule, count in passed_rules.items()
+        if count >= 4
+    )
+
+    failed = sorted(
+        rule
+        for rule, count in failed_rules.items()
+        if count >= 4
+    )
+
+    return {
+        "grade": grade,
+        "confidence": confidence,
+        "passed": passed,
+        "failed": failed,
+        "aligned_timeframes": aligned,
+        "failed_timeframes": not_aligned,
+        "timeframes": timeframe_scores,
+    }
+

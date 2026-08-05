@@ -55,14 +55,6 @@ def calculate_risk(indicators, signal):
 
         risk = entry - stop_loss
 
-        risk = min(
-            risk,
-            atr * 0.75,
-            entry * 0.004,
-        )
-
-        stop_loss = entry - risk
-
         target1 = entry + (risk * rr1)
         target2 = entry + (risk * rr2)
         target3 = entry + (risk * rr3)
@@ -83,14 +75,6 @@ def calculate_risk(indicators, signal):
 
         risk = stop_loss - entry
 
-        risk = min(
-            risk,
-            atr * 0.75,
-            entry * 0.004,
-        )
-
-        stop_loss = entry + risk
-
         target1 = entry - (risk * rr1)
         target2 = entry - (risk * rr2)
         target3 = entry - (risk * rr3)
@@ -100,15 +84,6 @@ def calculate_risk(indicators, signal):
 
     reward = abs(target1 - entry)
 
-    per_share_risk = abs(risk)
-
-    recommended_qty = max(
-        1,
-        int(MAX_RISK_PER_TRADE / per_share_risk)
-    ) if per_share_risk else 1
-
-    capital_required = recommended_qty * entry
-
     return {
         "entry": round(entry, 2),
         "stop_loss": round(stop_loss, 2),
@@ -116,9 +91,6 @@ def calculate_risk(indicators, signal):
         "target2": round(target2, 2),
         "target3": round(target3, 2),
         "risk": round(risk, 2),
-        "per_share_risk": round(per_share_risk, 2),
-        "recommended_qty": recommended_qty,
-        "capital_required": round(capital_required, 2),
         "reward": round(reward, 2),
         "risk_reward": round(reward / risk, 2) if risk else 0,
     }

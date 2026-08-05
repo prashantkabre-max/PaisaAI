@@ -108,3 +108,11 @@ MTF_ALIGNMENT_MIN_SCORE = 75
 # Reserved for future divergence filter
 MTF_MIN_SCORE_DIFFERENCE = 10
 
+
+
+# ==========================================================
+# PAISAAI RISK MANAGER
+# ==========================================================
+
+MAX_RISK_PER_TRADE = 2000
+
