@@ -3,6 +3,7 @@ PaisaAI Professional Risk Management Engine
 """
 
 from scanner.settings import *
+from scanner.runtime import get_risk_mode
 
 
 def calculate_risk(indicators, signal):
@@ -21,8 +22,20 @@ def calculate_risk(indicators, signal):
 
     entry = round(ltp, 2)
 
+    mode = get_risk_mode()
+
+    if mode == "diagnostic":
+        atr_mult = 0.25
+        rr1, rr2, rr3 = 0.25, 0.50, 0.75
+    elif mode == "aggressive":
+        atr_mult = 0.75
+        rr1, rr2, rr3 = 2.5, 4.0, 6.0
+    else:
+        atr_mult = 1.25
+        rr1, rr2, rr3 = 2.0, 3.0, 4.0
+
     minimum_stop = max(
-        atr * 1.25,
+        atr * atr_mult,
         entry * 0.003,      # 0.30%
     )
 
@@ -42,9 +55,17 @@ def calculate_risk(indicators, signal):
 
         risk = entry - stop_loss
 
-        target1 = entry + (risk * 2.0)
-        target2 = entry + (risk * 3.0)
-        target3 = entry + (risk * 4.0)
+        risk = min(
+            risk,
+            atr * 0.75,
+            entry * 0.004,
+        )
+
+        stop_loss = entry - risk
+
+        target1 = entry + (risk * rr1)
+        target2 = entry + (risk * rr2)
+        target3 = entry + (risk * rr3)
 
     elif signal == "SELL":
 
@@ -62,9 +83,17 @@ def calculate_risk(indicators, signal):
 
         risk = stop_loss - entry
 
-        target1 = entry - (risk * 2.0)
-        target2 = entry - (risk * 3.0)
-        target3 = entry - (risk * 4.0)
+        risk = min(
+            risk,
+            atr * 0.75,
+            entry * 0.004,
+        )
+
+        stop_loss = entry + risk
+
+        target1 = entry - (risk * rr1)
+        target2 = entry - (risk * rr2)
+        target3 = entry - (risk * rr3)
 
     else:
         return None

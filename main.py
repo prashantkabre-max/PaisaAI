@@ -3,6 +3,7 @@ import sys
 from scanner.stream import LiveStreamer
 from scanner.watchlist import get_watchlist
 from scanner.replay import ReplayEngine
+from scanner.runtime import set_risk_mode
 
 from data.preload import preload_history
 from data.candles import get_history
@@ -13,9 +14,11 @@ def run_live(watchlist):
     Start normal PaisaAI live-market mode.
     """
 
-    print("\n===================================")
-    print("PaisaAI MODE : LIVE")
-    print("===================================\n")
+    print("\n==============================================================")
+    print("🚀 PAISAAI LIVE SCANNER")
+    from scanner.runtime import get_risk_mode
+    print(f"🟢 MODE : {get_risk_mode().upper()}")
+    print("==============================================================\n")
 
     streamer = LiveStreamer()
     streamer.start()
@@ -77,15 +80,16 @@ def run_replay(watchlist):
 def main():
     watchlist = get_watchlist()
 
-    mode = "live"
+    mode = "production"
 
     if len(sys.argv) > 1:
         mode = sys.argv[1].strip().lower()
 
-    if mode not in ("live", "replay"):
+    if mode not in ("production", "diagnostic", "aggressive", "replay"):
         print("Usage:")
         print("  python main.py")
-        print("  python main.py live")
+        print("  python main.py diagnostic")
+        print("  python main.py aggressive")
         print("  python main.py replay")
         return
 
@@ -94,6 +98,13 @@ def main():
     if mode == "replay":
         run_replay(watchlist)
         return
+
+    risk_mode = "production"
+
+    if mode == "diagnostic":
+        risk_mode = "diagnostic"
+    elif mode == "aggressive":
+        risk_mode = "aggressive"
 
     run_live(watchlist)
 
