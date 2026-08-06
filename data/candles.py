@@ -132,6 +132,8 @@ def update_tick(symbol, price, volume, timestamp):
     # Update higher timeframes
     # from completed 1m candle
     # -----------------------------
+    closed_timeframes = []
+
     for tf, minutes in TIMEFRAME_MAP.items():
 
         if tf == "1m":
@@ -155,6 +157,8 @@ def update_tick(symbol, price, volume, timestamp):
                 tf,
                 tf_current
             )
+
+            closed_timeframes.append(tf)
 
             store["current"][tf] = completed.copy()
 
@@ -182,7 +186,10 @@ def update_tick(symbol, price, volume, timestamp):
         timestamp
     )
 
-    return completed
+    return {
+        "completed_1m": completed,
+        "closed_timeframes": closed_timeframes,
+    }
 def get_latest_candle(symbol):
 
     store = get_symbol_store(symbol)
@@ -205,6 +212,15 @@ def get_history(symbol, timeframe="1m"):
         history.append(current)
 
     return history
+
+def get_closed_history(symbol, timeframe="1m"):
+    store = get_symbol_store(symbol)
+
+    if timeframe not in TIMEFRAME_MAP:
+        return []
+
+    return list(store["history"][timeframe])
+
 
 
 def clear_symbol(symbol):

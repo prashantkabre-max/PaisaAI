@@ -22,7 +22,6 @@ from scanner.trade_manager import (
 from data.candles import (
     update_tick,
     get_history,
-    get_closed_history,
 )
 
 configuration = upstox_client.Configuration()
@@ -56,8 +55,6 @@ class LiveStreamer:
             "stoploss": 0,
             "wins": 0,
             "losses": 0,
-            "gross_profit": 0.0,
-            "gross_loss": 0.0,
         }
         self.signal_state = SignalState()
 
@@ -91,19 +88,14 @@ class LiveStreamer:
         if market is None:
             return None
 
-        candle_update = update_tick(
+        if update_tick(
             symbol=market["symbol"],
             price=market["ltp"],
             volume=market.get("volume", 0),
             timestamp=datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             ),
-        )
-
-        if candle_update is None:
-            return None
-
-        if "5m" not in candle_update.get("closed_timeframes", []):
+        ) is None:
             return None
 
         return market
@@ -122,17 +114,10 @@ class LiveStreamer:
             "30m",
             "60m",
         ):
-
-            if timeframe == "5m":
-                history[timeframe] = get_closed_history(
-                    market["symbol"],
-                    timeframe,
-                )
-            else:
-                history[timeframe] = get_history(
-                    market["symbol"],
-                    timeframe,
-                )
+            history[timeframe] = get_history(
+                market["symbol"],
+                timeframe,
+            )
 
         all_indicators = calculate_all_indicators(
             history,
@@ -278,7 +263,7 @@ class LiveStreamer:
             print(f"📉 Per Share Risk : ₹{risk['per_share_risk']:.2f}")
             print(f"💼 Max Risk       : ₹2,000")
             print(f"📦 Recommended Qty: {risk['recommended_qty']}")
-            print(f"💵 Capital Needed : ₹{risk['capital_required']/5:,.2f}")
+            print(f"💵 Capital Needed : ₹{risk['capital_required']:,.2f}")
             print(f"📈 Expected Gain  : ₹{risk['reward']:.2f}/share")
             print()
 
@@ -306,10 +291,11 @@ class LiveStreamer:
         if trade["failed"]:
             print(f"❌ Missing        : {' , '.join(trade['failed'])} | RVOL={trade.get('rvol')} | RSI={trade.get('rsi')}")
 
-        status=[]
-        for tf in ("1m","3m","5m","15m","30m","60m"):
-            status.append(f"✓{tf}" if tf in trade.get("aligned_timeframes",[]) else f"✗{tf}")
-        print("🕒 MTF : " + " ".join(status))
+        if trade.get("aligned_timeframes"):
+            print(f"🕒 MTF Alignment : {', '.join(trade['aligned_timeframes'])}")
+
+        if trade.get("failed_timeframes"):
+            print(f"⚠️ MTF Missing   : {', '.join(trade['failed_timeframes'])}")
 
         if alert.get("generated_at"):
             print()
@@ -338,21 +324,17 @@ class LiveStreamer:
 
             if event["event"] == "TARGET_1_HIT":
                 self.session_stats["target1"] += 1
+                self.session_stats["wins"] += 1
                 print("🏆🏆 TARGET 1 HIT")
-                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
 
             elif event["event"] == "TARGET_2_HIT":
                 self.session_stats["target2"] += 1
                 print("🥈🥈 TARGET 2 HIT")
-                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
 
             elif event["event"] == "TARGET_3_HIT":
                 self.session_stats["target3"] += 1
-                self.session_stats["wins"] += 1
-                self.session_stats["gross_profit"] += event["pnl"]
                 self.session_stats["active"] -= 1
                 print("👑👑👑 TARGET 3 ACHIEVED")
-                print(f"💰 Final Profit : ₹{event['pnl']:,.2f}")
                 print()
                 print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
                 print()
@@ -360,10 +342,8 @@ class LiveStreamer:
             elif event["event"] == "STOP_LOSS_HIT":
                 self.session_stats["stoploss"] += 1
                 self.session_stats["losses"] += 1
-                self.session_stats["gross_loss"] += abs(event["pnl"])
                 self.session_stats["active"] -= 1
                 print("😭😭 STOP LOSS HIT")
-                print(f"💸 Loss Booked : ₹{abs(event['pnl']):,.2f}")
                 print()
                 print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
                 print()
@@ -458,10 +438,6 @@ class LiveStreamer:
         print()
         print(f"📦 Closed Trades          : {closed}")
         print(f"🔥 Win Rate (Closed)      : {win_rate:.1f}%")
-        net = self.session_stats["gross_profit"] - self.session_stats["gross_loss"]
-        print(f"💰 Gross Profit          : ₹{self.session_stats['gross_profit']:,.2f}")
-        print(f"💸 Gross Loss            : ₹{self.session_stats['gross_loss']:,.2f}")
-        print(f"📊 Net P&L               : ₹{net:,.2f}")
         print()
         print(f"⭐ A+ Trades              : {self.session_stats['a_plus']}")
         print(f"🥇 A Trades               : {self.session_stats['a']}")

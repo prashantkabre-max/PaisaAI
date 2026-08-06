@@ -91,19 +91,14 @@ class LiveStreamer:
         if market is None:
             return None
 
-        candle_update = update_tick(
+        if update_tick(
             symbol=market["symbol"],
             price=market["ltp"],
             volume=market.get("volume", 0),
             timestamp=datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             ),
-        )
-
-        if candle_update is None:
-            return None
-
-        if "5m" not in candle_update.get("closed_timeframes", []):
+        ) is None:
             return None
 
         return market
@@ -122,17 +117,10 @@ class LiveStreamer:
             "30m",
             "60m",
         ):
-
-            if timeframe == "5m":
-                history[timeframe] = get_closed_history(
-                    market["symbol"],
-                    timeframe,
-                )
-            else:
-                history[timeframe] = get_history(
-                    market["symbol"],
-                    timeframe,
-                )
+            history[timeframe] = get_history(
+                market["symbol"],
+                timeframe,
+            )
 
         all_indicators = calculate_all_indicators(
             history,

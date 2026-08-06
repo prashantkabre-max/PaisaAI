@@ -29,6 +29,7 @@ def register_trade(trade):
         "target1": risk["target1"],
         "target2": risk["target2"],
         "target3": risk["target3"],
+        "risk": risk,
         "target1_hit": False,
         "target2_hit": False,
         "target3_hit": False,
@@ -54,6 +55,19 @@ def update_trade(symbol, price):
         minutes = int(duration.total_seconds() // 60)
         seconds = int(duration.total_seconds() % 60)
 
+        risk = trade["risk"]
+
+        qty = risk["recommended_qty"]
+
+        if name == "TARGET_1_HIT":
+            pnl = qty * abs(trade["target1"] - trade["entry"])
+        elif name == "TARGET_2_HIT":
+            pnl = qty * abs(trade["target2"] - trade["entry"])
+        elif name == "TARGET_3_HIT":
+            pnl = qty * abs(trade["target3"] - trade["entry"])
+        else:
+            pnl = -(qty * abs(trade["entry"] - trade["stop_loss"]))
+
         return {
             "symbol": symbol,
             "display_symbol": trade["display_symbol"],
@@ -61,6 +75,7 @@ def update_trade(symbol, price):
             "event": name,
             "duration": f"{minutes:02d}m {seconds:02d}s",
             "exit_reason": "TARGET 3" if name == "TARGET_3_HIT" else "STOP LOSS",
+            "pnl": round(pnl, 2),
         }
 
     if trade["action"] == "BUY":
