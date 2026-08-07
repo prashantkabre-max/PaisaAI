@@ -4,7 +4,7 @@ PaisaAI Replay Engine V2
 
 from datetime import datetime
 from data.candles import get_history
-from scanner.stream import LiveStreamer
+from scanner.replay_stream import ReplayStreamer
 from scanner.strategy_manager import manager, STRATEGIES
 from scanner.replay_strategy import STOPLOSS_MODE, PRINT_STRATEGY
 
@@ -13,7 +13,7 @@ class ReplayFeed:
 
     def __init__(self, speed=1.0):
         self.speed = speed
-        self.streamer = LiveStreamer()
+        self.streamer = ReplayStreamer()
 
     def replay_symbol(self, symbol):
 
@@ -37,11 +37,10 @@ class ReplayFeed:
                 "volume": candle["volume"],
             }
 
-            result = self.streamer.process_completed_market(market)
+            trade = self.streamer.process_completed_market(market)
 
-            if result is not None:
-                for strategy in STRATEGIES:
-                    manager.register_trade(strategy)
+            if trade is not None:
+                self.streamer.process_replay_trade(trade)
 
             processed += 1
 

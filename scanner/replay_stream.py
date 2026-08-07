@@ -29,5 +29,23 @@ class ReplayStreamer(LiveStreamer):
     def replay_get_active_trades(self, strategy=None):
         return get_active_trades(strategy)
 
+
+
+    def process_replay_trade(self, trade):
+        """
+        Replay one trade through every stop-loss strategy.
+        """
+        from scanner.strategy_manager import STRATEGIES
+
+        for strategy in STRATEGIES:
+
+            print(f"🧪 Testing Strategy : {strategy}")
+
+            self.replay_register_trade(
+                strategy,
+                trade.copy(),
+            )
+
+
     def replay_get_strategies(self):
         return get_strategies()
