@@ -2,11 +2,10 @@ import sys
 
 from scanner.stream import LiveStreamer
 from scanner.watchlist import get_watchlist
-from scanner.replay import ReplayEngine
+from scanner.replay_feed import start_replay_feed
 from scanner.runtime import set_risk_mode
 
 from data.preload import preload_history
-from data.candles import get_history
 
 
 def run_live(watchlist):
@@ -24,72 +23,29 @@ def run_live(watchlist):
     streamer.start()
 
 
+
 def run_replay(watchlist):
     """
-    Run PaisaAI against preloaded historical 1-minute candles.
-
-    Replay uses the same:
-        indicators
-        scoring
-        decision engine
-        risk engine
-        professional trade banner
-
-    as Live mode.
+    PaisaAI Replay V2
     """
 
-    print("\n===================================")
-    print("PaisaAI MODE : REPLAY")
-    print("Symbols       :", len(watchlist))
-    print("===================================\n")
+    print("\n==============================================================")
+    print("🎬 PAISAAI REPLAY ENGINE V2")
+    print("==============================================================\\n")
 
-    engine = ReplayEngine()
-
-    replayed = 0
-    signals = 0
-
-    for symbol in watchlist:
-        candles = get_history(
-            symbol,
-            "1m",
-        )
-
-        if not candles:
-            continue
-
-        replayed += 1
-
-        result = engine.replay_latest(
-            symbol,
-            candles,
-        )
-
-        if result is None:
-            continue
-
-        if result["grade"] != "IGNORE":
-            signals += 1
-
-    print("\n===================================")
-    print("PaisaAI REPLAY COMPLETED")
-    print("Symbols replayed :", replayed)
-    print("Trade signals    :", signals)
-    print("===================================\n")
-
+    start_replay_feed()
 
 def main():
-    watchlist = get_watchlist()
 
-    mode = "production"
+    watchlist = get_watchlist()
+    mode = sys.argv[1].strip().lower() if len(sys.argv) > 1 else "production"
 
     if len(sys.argv) > 1:
         mode = sys.argv[1].strip().lower()
 
-    if mode not in ("production", "diagnostic", "aggressive", "replay"):
+    if mode not in ("production", "replay"):
         print("Usage:")
-        print("  python main.py")
-        print("  python main.py diagnostic")
-        print("  python main.py aggressive")
+        print("  python main.py production")
         print("  python main.py replay")
         return
 
@@ -111,3 +67,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
