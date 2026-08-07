@@ -32,7 +32,7 @@ def calculate_risk(indicators, signal):
         rr1, rr2, rr3 = 2.5, 4.0, 6.0
     else:
         atr_mult = 1.25
-        rr1, rr2, rr3 = 2.0, 3.0, 4.0
+        rr1, rr2, rr3 = 1.0, 1.5, 2.0
 
     minimum_stop = max(
         atr * atr_mult,
@@ -53,15 +53,8 @@ def calculate_risk(indicators, signal):
 
         stop_loss = min(candidates)
 
+        stop_loss = day_low if day_low is not None else stop_loss
         risk = entry - stop_loss
-
-        risk = min(
-            risk,
-            atr * 0.75,
-            entry * 0.004,
-        )
-
-        stop_loss = entry - risk
 
         target1 = entry + (risk * rr1)
         target2 = entry + (risk * rr2)
@@ -81,15 +74,8 @@ def calculate_risk(indicators, signal):
 
         stop_loss = max(candidates)
 
+        stop_loss = day_high if day_high is not None else stop_loss
         risk = stop_loss - entry
-
-        risk = min(
-            risk,
-            atr * 0.75,
-            entry * 0.004,
-        )
-
-        stop_loss = entry + risk
 
         target1 = entry - (risk * rr1)
         target2 = entry - (risk * rr2)

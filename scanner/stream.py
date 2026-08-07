@@ -285,12 +285,12 @@ class LiveStreamer:
 
             rr = risk["risk_reward"]
 
-            if rr >= 2:
+            if rr >= 2.0:
                 quality = "🟢 EXCELLENT"
-            elif rr >= 1.75:
+            elif rr >= 1.5:
+                quality = "🟡 VERY GOOD"
+            elif rr >= 1.0:
                 quality = "🔵 GOOD"
-            elif rr >= 1.50:
-                quality = "🟡 AVERAGE"
             else:
                 quality = "🔴 POOR"
 
