@@ -278,7 +278,8 @@ class LiveStreamer:
             print(f"📉 Per Share Risk : ₹{risk['per_share_risk']:.2f}")
             print(f"💼 Max Risk       : ₹2,000")
             print(f"📦 Recommended Qty: {risk['recommended_qty']}")
-            print(f"💵 Capital Needed : ₹{risk['capital_required']/5:,.2f}")
+            print(f"💵 Position Value : ₹{risk['capital_required']:,.2f}")
+            print(f"⚡ Margin Needed  : ₹{risk['capital_required']/5:,.2f} (5×)")
             print(f"📈 Expected Gain  : ₹{risk['reward']:.2f}/share")
             print()
 
