@@ -55,7 +55,13 @@ def main():
         run_replay(watchlist)
         return
 
-    set_risk_mode("production")
+    risk_mode = "production"
+
+    if mode == "diagnostic":
+        risk_mode = "diagnostic"
+    elif mode == "aggressive":
+        risk_mode = "aggressive"
+
     run_live(watchlist)
 
 

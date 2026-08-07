@@ -108,6 +108,19 @@ class LiveStreamer:
 
         return market
 
+    def process_replay_market(self, market):
+
+        """
+        Replay V2 entry point.
+
+        Receives a completed market snapshot generated from
+        historical candles and processes it through the
+        exact same pipeline used by live trading.
+        """
+
+        return self.process_completed_market(market)
+
+
     def calculate_indicators(self, market):
 
         from scanner.indicators import calculate_indicators
@@ -180,6 +193,89 @@ class LiveStreamer:
             indicators,
             score_result,
         )
+
+
+    def process_completed_market(self, market):
+
+        event = update_trade(
+            market["symbol"],
+            market["ltp"],
+        )
+
+        if event:
+            print()
+            print("=" * 82)
+
+            if event["event"] == "TARGET_1_HIT":
+                self.session_stats["target1"] += 1
+                print("🏆🏆 TARGET 1 HIT")
+                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
+
+            elif event["event"] == "TARGET_2_HIT":
+                self.session_stats["target2"] += 1
+                print("🥈🥈 TARGET 2 HIT")
+                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
+
+            elif event["event"] == "TARGET_3_HIT":
+                self.session_stats["target3"] += 1
+                self.session_stats["wins"] += 1
+                self.session_stats["gross_profit"] += event["pnl"]
+                self.session_stats["active"] -= 1
+                print("👑👑👑 TARGET 3 ACHIEVED")
+                print(f"💰 Final Profit : ₹{event['pnl']:,.2f}")
+                print()
+                print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
+                print()
+
+            elif event["event"] == "STOP_LOSS_HIT":
+                self.session_stats["stoploss"] += 1
+                self.session_stats["losses"] += 1
+                self.session_stats["gross_loss"] += abs(event["pnl"])
+                self.session_stats["active"] -= 1
+                print("😭😭 STOP LOSS HIT")
+                print(f"💸 Loss Booked : ₹{abs(event['pnl']):,.2f}")
+                print()
+                print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
+                print()
+
+            print()
+            print(f"🔢 Trade No. : {event['trade_number']}")
+            print(f"📊 Stock     : {event['display_symbol']}")
+            if event["event"] in ("TARGET_3_HIT", "STOP_LOSS_HIT"):
+                print(f"🏁 Exit      : {event['exit_reason']}")
+                print(f"⏱ Duration  : {event['duration']}")
+            print(f"🕒 Time      : {datetime.now().strftime('%H:%M:%S')}")
+            print("=" * 82)
+            print()
+
+        indicators = self.calculate_indicators(market)
+
+        if market["symbol"] == "NSE_INDEX|Nifty 50":
+            MARKET_STATE["NIFTY"] = indicators
+        elif market["symbol"] == "NSE_INDEX|Nifty Bank":
+            MARKET_STATE["BANKNIFTY"] = indicators
+
+        trade = self.calculate_trade(indicators)
+
+        if trade is None:
+            return
+
+        confirmed = self.signal_state.confirm(
+            trade["symbol"],
+            trade["action"],
+        )
+
+        if confirmed is None:
+            return
+
+        trade["action"] = confirmed
+
+        self.print_trade(trade)
+
+        if (datetime.now() - self.last_summary).total_seconds() >= 600:
+            self.print_session_summary()
+            self.last_summary = datetime.now()
+
 
     def print_trade(self, trade, replay_mode=False, replay_timestamp=None):
 
@@ -327,87 +423,7 @@ class LiveStreamer:
         if market is None:
             return
 
-        event = update_trade(
-            market["symbol"],
-            market["ltp"],
-        )
-#         print(f"DEBUG: {market['symbol']} LTP={market['ltp']} EVENT={event}")
-
-        if event:
-            print()
-            print("=" * 82)
-
-            if event["event"] == "TARGET_1_HIT":
-                self.session_stats["target1"] += 1
-                print("🏆🏆 TARGET 1 HIT")
-                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
-
-            elif event["event"] == "TARGET_2_HIT":
-                self.session_stats["target2"] += 1
-                print("🥈🥈 TARGET 2 HIT")
-                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
-
-            elif event["event"] == "TARGET_3_HIT":
-                self.session_stats["target3"] += 1
-                self.session_stats["wins"] += 1
-                self.session_stats["gross_profit"] += event["pnl"]
-                self.session_stats["active"] -= 1
-                print("👑👑👑 TARGET 3 ACHIEVED")
-                print(f"💰 Final Profit : ₹{event['pnl']:,.2f}")
-                print()
-                print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
-                print()
-
-            elif event["event"] == "STOP_LOSS_HIT":
-                self.session_stats["stoploss"] += 1
-                self.session_stats["losses"] += 1
-                self.session_stats["gross_loss"] += abs(event["pnl"])
-                self.session_stats["active"] -= 1
-                print("😭😭 STOP LOSS HIT")
-                print(f"💸 Loss Booked : ₹{abs(event['pnl']):,.2f}")
-                print()
-                print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
-                print()
-
-            print()
-            print(f"🔢 Trade No. : {event['trade_number']}")
-            print(f"📊 Stock     : {event['display_symbol']}")
-            if event["event"] in ("TARGET_3_HIT", "STOP_LOSS_HIT"):
-                print(f"🏁 Exit      : {event['exit_reason']}")
-                print(f"⏱ Duration  : {event['duration']}")
-            print(f"🕒 Time      : {datetime.now().strftime('%H:%M:%S')}")
-            print("=" * 82)
-            print()
-
-        indicators = self.calculate_indicators(market)
-
-        if market["symbol"] == "NSE_INDEX|Nifty 50":
-            MARKET_STATE["NIFTY"] = indicators
-        elif market["symbol"] == "NSE_INDEX|Nifty Bank":
-            MARKET_STATE["BANKNIFTY"] = indicators
-
-
-        trade = self.calculate_trade(indicators)
-
-        if trade is None:
-            return
-
-
-        confirmed = self.signal_state.confirm(
-            trade["symbol"],
-            trade["action"],
-        )
-
-        if confirmed is None:
-            return
-
-        trade["action"] = confirmed
-
-        self.print_trade(trade)
-
-        if (datetime.now() - self.last_summary).total_seconds() >= 600:
-            self.print_session_summary()
-            self.last_summary = datetime.now()
+        self.process_completed_market(market)
 
     def on_error(self, *args):
         print("ERROR:", args)

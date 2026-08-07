@@ -4,6 +4,54 @@ PaisaAI Professional Risk Management Engine
 
 from scanner.settings import *
 from scanner.runtime import get_risk_mode
+from scanner.stoploss_config import STOPLOSS_MODE
+
+
+
+
+def get_stop_loss_mode():
+    """
+    Central dispatcher for stop-loss strategies.
+    Behaviour is unchanged for now.
+    """
+
+    mode = STOPLOSS_MODE.upper()
+
+    if mode == "ATR":
+        return "ATR"
+
+    if mode == "SESSION":
+        return "SESSION"
+
+    if mode == "SWING":
+        return "SWING"
+
+    if mode == "ORB":
+        return "ORB"
+
+    return "SMART"
+
+
+
+
+def calculate_atr_stop(*args, **kwargs):
+    return None
+
+
+def calculate_session_stop(*args, **kwargs):
+    return None
+
+
+def calculate_swing_stop(*args, **kwargs):
+    return None
+
+
+def calculate_orb_stop(*args, **kwargs):
+    return None
+
+
+def calculate_smart_stop(*args, **kwargs):
+    return None
 
 
 def calculate_risk(indicators, signal):
@@ -38,6 +86,23 @@ def calculate_risk(indicators, signal):
         atr * atr_mult,
         entry * 0.003,      # 0.30%
     )
+
+    mode = get_stop_loss_mode()
+
+    if mode == "ATR":
+        print("🟢 STOPLOSS MODE : ATR")
+
+    elif mode == "SESSION":
+        print("🟢 STOPLOSS MODE : SESSION")
+
+    elif mode == "SWING":
+        print("🟢 STOPLOSS MODE : SWING")
+
+    elif mode == "ORB":
+        print("🟢 STOPLOSS MODE : ORB")
+
+    else:
+        print("🟢 STOPLOSS MODE : SMART")
 
     if signal == "BUY":
 
@@ -96,9 +161,7 @@ def calculate_risk(indicators, signal):
     capital_required = recommended_qty * entry
 
     print("\n================ STOP LOSS DEBUG ================")
-    print(f"Entry Price     : {entry_price}")
-    print(f"Day Low         : {day_low}")
-    print(f"Day High        : {day_high}")
+    print(f"Entry Price     : {entry}")
     print(f"Chosen Stop     : {stop_loss}")
     print(f"Per Share Risk  : {per_share_risk}")
     print("=================================================\n")
