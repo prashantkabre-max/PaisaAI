@@ -95,6 +95,14 @@ def calculate_risk(indicators, signal):
 
     capital_required = recommended_qty * entry
 
+    print("\n================ STOP LOSS DEBUG ================")
+    print(f"Entry Price     : {entry_price}")
+    print(f"Day Low         : {day_low}")
+    print(f"Day High        : {day_high}")
+    print(f"Chosen Stop     : {stop_loss}")
+    print(f"Per Share Risk  : {per_share_risk}")
+    print("=================================================\n")
+
     return {
         "entry": round(entry, 2),
         "stop_loss": round(stop_loss, 2),
