@@ -89,36 +89,24 @@ def calculate_risk(indicators, signal):
 
     mode = get_stop_loss_mode()
 
-    if mode == "ATR":
-        print("🟢 STOPLOSS MODE : ATR")
-
-    elif mode == "SESSION":
-        print("🟢 STOPLOSS MODE : SESSION")
-
-    elif mode == "SWING":
-        print("🟢 STOPLOSS MODE : SWING")
-
-    elif mode == "ORB":
-        print("🟢 STOPLOSS MODE : ORB")
-
-    else:
-        print("🟢 STOPLOSS MODE : SMART")
-
     if signal == "BUY":
 
-        candidates = [
-            entry - minimum_stop,
-        ]
+        if mode == "ATR":
+            stop_loss = entry - minimum_stop
+        else:
+            candidates = [
+                entry - minimum_stop,
+            ]
 
-        if day_low is not None:
-            candidates.append(day_low)
+            if day_low is not None:
+                candidates.append(day_low)
 
-        if swing_low is not None:
-            candidates.append(swing_low)
+            if swing_low is not None:
+                candidates.append(swing_low)
 
-        stop_loss = min(candidates)
+            stop_loss = min(candidates)
+            stop_loss = day_low if day_low is not None else stop_loss
 
-        stop_loss = day_low if day_low is not None else stop_loss
         risk = entry - stop_loss
 
         target1 = entry + (risk * rr1)
@@ -127,19 +115,22 @@ def calculate_risk(indicators, signal):
 
     elif signal == "SELL":
 
-        candidates = [
-            entry + minimum_stop,
-        ]
+        if mode == "ATR":
+            stop_loss = entry + minimum_stop
+        else:
+            candidates = [
+                entry + minimum_stop,
+            ]
 
-        if day_high is not None:
-            candidates.append(day_high)
+            if day_high is not None:
+                candidates.append(day_high)
 
-        if swing_high is not None:
-            candidates.append(swing_high)
+            if swing_high is not None:
+                candidates.append(swing_high)
 
-        stop_loss = max(candidates)
+            stop_loss = max(candidates)
+            stop_loss = day_high if day_high is not None else stop_loss
 
-        stop_loss = day_high if day_high is not None else stop_loss
         risk = stop_loss - entry
 
         target1 = entry - (risk * rr1)
@@ -159,12 +150,6 @@ def calculate_risk(indicators, signal):
     ) if per_share_risk else 1
 
     capital_required = recommended_qty * entry
-
-    print("\n================ STOP LOSS DEBUG ================")
-    print(f"Entry Price     : {entry}")
-    print(f"Chosen Stop     : {stop_loss}")
-    print(f"Per Share Risk  : {per_share_risk}")
-    print("=================================================\n")
 
     return {
         "entry": round(entry, 2),

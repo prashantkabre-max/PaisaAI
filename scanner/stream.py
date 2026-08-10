@@ -103,8 +103,11 @@ class LiveStreamer:
         if candle_update is None:
             return None
 
-        if "5m" not in candle_update.get("closed_timeframes", []):
-            return None
+        # Exit monitoring must run on every live tick.
+        # Signal generation remains restricted to closed 5m candles.
+        market["_5m_closed"] = (
+            "5m" in candle_update.get("closed_timeframes", [])
+        )
 
         return market
 
@@ -189,6 +192,14 @@ class LiveStreamer:
         if indicators is None:
             return None
 
+        # Production ATR stop-loss uses the closed 5m ATR.
+        # Entry/MTF signal logic remains unchanged.
+        atr_5m = timeframe_indicators.get("5m", {}).get("atr")
+
+        if atr_5m is not None:
+            indicators = dict(indicators)
+            indicators["atr"] = atr_5m
+
         return evaluate_trade(
             indicators,
             score_result,
@@ -247,6 +258,11 @@ class LiveStreamer:
             print(f"🕒 Time      : {datetime.now().strftime('%H:%M:%S')}")
             print("=" * 82)
             print()
+
+        # Do not run the signal engine on every tick.
+        # Open trades have already been checked above.
+        if not market.get("_5m_closed", False):
+            return
 
         indicators = self.calculate_indicators(market)
 

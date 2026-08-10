@@ -12,7 +12,7 @@ PaisaAI Stop Loss Configuration
 #
 # Change this single line to test different strategies.
 
-STOPLOSS_MODE = "SMART"
+STOPLOSS_MODE = "ATR"
 
 
 # Runtime override.
