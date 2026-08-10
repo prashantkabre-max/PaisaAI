@@ -12,6 +12,7 @@ from scanner.decision import evaluate_trade
 from scanner.alerts import process_alert
 from scanner.runtime import MARKET_STATE
 from scanner.signal_state import SignalState
+from scanner.live_sentiment_shadow import run_shadow
 
 from scanner.trade_manager import (
     register_trade,
@@ -285,6 +286,26 @@ class LiveStreamer:
             return
 
         trade["action"] = confirmed
+
+        # ============================================================
+        # SHADOW SENTIMENT
+        # Observation-only. Never modifies production trade.
+        # ============================================================
+        nifty_indicators = MARKET_STATE.get("NIFTY", {}).get("5m", {})
+
+        shadow = run_shadow(
+            trade["symbol"],
+            trade,
+            indicators,
+            nifty_indicators,
+        )
+
+        print()
+        print(
+            f"🧠 SHADOW SENTIMENT : {shadow['sentiment']} "
+            f"| Score {shadow['score']:+d} "
+            f"| Confidence {shadow['confidence']}%"
+        )
 
         self.print_trade(trade)
 
