@@ -386,7 +386,7 @@ class LiveStreamer:
             self.last_summary = datetime.now()
 
 
-    def print_trade(self, trade, replay_mode=False, replay_timestamp=None):
+    def print_trade(self, trade, replay_mode=False, replay_timestamp=None, preserve_trade_number=False):
 
         if trade is None:
             return
@@ -396,8 +396,9 @@ class LiveStreamer:
 
         if replay_mode:
 
-            self.trade_number += 1
-            trade["trade_number"] = self.trade_number
+            if not preserve_trade_number:
+                self.trade_number += 1
+                trade["trade_number"] = self.trade_number
 
             alert = {
                 "generated_at": replay_timestamp,
@@ -464,6 +465,9 @@ class LiveStreamer:
         print(title)
         print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
         print(f"🔢 Trade No.     : {trade['trade_number']}")
+
+        if replay_mode and trade.get("replay_strategy"):
+            print(f"🛑 Stop Loss Strategy : {trade['replay_strategy']}")
 
         print("=" * 82)
 
