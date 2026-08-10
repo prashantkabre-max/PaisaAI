@@ -277,6 +277,55 @@ class LiveStreamer:
         if trade is None:
             return
 
+        # ============================================================
+        # REPLAY SHADOW SENTIMENT
+        # ============================================================
+        # Replay must be able to observe sentiment even when the
+        # SignalState confirmation engine does not reach 3/5 yet.
+        #
+        # IMPORTANT:
+        # - Replay only
+        # - Observation only
+        # - Never changes production trade
+        # - Never writes to the live shadow log
+        # ============================================================
+        if market.get("_replay", False):
+
+            replay_stock = (
+                indicators.get("5m", {})
+                if isinstance(indicators, dict)
+                else {}
+            )
+
+            replay_nifty = (
+                (MARKET_STATE.get("NIFTY") or {})
+                .get("5m", {})
+            )
+
+            replay_shadow = run_shadow(
+                trade["symbol"],
+                trade,
+                replay_stock,
+                replay_nifty,
+                record=False,
+            )
+
+            print()
+            print(
+                f"🧠 REPLAY SHADOW : "
+                f"{replay_shadow['sentiment']} "
+                f"| Score {replay_shadow['score']:+d} "
+                f"| Confidence {replay_shadow['confidence']}%"
+            )
+
+            if replay_shadow["reasons"]:
+                print(
+                    "   └─ "
+                    + " | ".join(
+                        replay_shadow["reasons"]
+                    )
+                )
+
         confirmed = self.signal_state.confirm(
             trade["symbol"],
             trade["action"],
@@ -291,13 +340,36 @@ class LiveStreamer:
         # SHADOW SENTIMENT
         # Observation-only. Never modifies production trade.
         # ============================================================
-        nifty_indicators = MARKET_STATE.get("NIFTY", {}).get("5m", {})
+        # ============================================================
+        # SENTIMENT ENGINE INPUTS
+        # ============================================================
+        # Sentiment Engine V2 operates on the closed 5m context.
+        #
+        # Stock  -> current stock 5m indicators
+        # Market -> NIFTY 5m indicators
+        #
+        # The full MTF dictionary must NOT be passed into the
+        # sentiment engine because its indicator fields live inside
+        # the individual timeframe dictionaries.
+        # ============================================================
+
+        stock_sentiment_indicators = (
+            indicators.get("5m", {})
+            if isinstance(indicators, dict)
+            else {}
+        )
+
+        nifty_indicators = (
+            (MARKET_STATE.get("NIFTY") or {})
+            .get("5m", {})
+        )
 
         shadow = run_shadow(
             trade["symbol"],
             trade,
-            indicators,
+            stock_sentiment_indicators,
             nifty_indicators,
+            record=not market.get("_replay", False),
         )
 
         print()

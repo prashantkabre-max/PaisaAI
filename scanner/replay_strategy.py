@@ -5,7 +5,7 @@ Changing these values affects ONLY Replay V2.
 Production remains untouched.
 """
 
-STOPLOSS_MODE = "SMART"
+STOPLOSS_MODE = "ATR"
 
 AVAILABLE_STOPLOSS = [
     "ATR",

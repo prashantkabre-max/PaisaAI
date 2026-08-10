@@ -5,6 +5,7 @@ from scanner.indicators import calculate_indicators
 from scanner.replay_runner import ReplayRunner
 from scanner.scoring import calculate_score
 from scanner.decision import evaluate_trade
+from scanner.live_sentiment_shadow import analyze_shadow_sentiment
 
 
 class ReplayEngine:
@@ -188,6 +189,17 @@ class ReplayEngine:
             if trade is None:
                 continue
 
+            # ============================================================
+            # REPLAY SHADOW SENTIMENT
+            # ============================================================
+            # Observation only.
+            # Does NOT modify production trade, score, grade, or action.
+            # Does NOT write to the live shadow log.
+            shadow = analyze_shadow_sentiment(
+                indicators,
+                None,
+            )
+
             results.append({
                 "symbol": symbol,
                 "display_symbol": indicators["display_symbol"],
@@ -204,6 +216,12 @@ class ReplayEngine:
                 "change_percent": indicators.get("change_percent"),
                 "ltp": indicators.get("ltp"),
                 "session_open": session_ohlc["open"],
+
+                # Shadow Sentiment observation
+                "shadow_sentiment": shadow["sentiment"],
+                "shadow_score": shadow["score"],
+                "shadow_confidence": shadow["confidence"],
+                "shadow_reasons": shadow["reasons"],
                 "session_high": session_ohlc["high"],
                 "session_low": session_ohlc["low"],
             })
@@ -230,7 +248,20 @@ class ReplayEngine:
                 "risk": result["risk"],
                 "rvol": result["rvol"],
                 "rsi": result["rsi"],
+
+                # Shadow Sentiment remains informational only.
+                "shadow_sentiment": result["shadow_sentiment"],
+                "shadow_score": result["shadow_score"],
+                "shadow_confidence": result["shadow_confidence"],
+                "shadow_reasons": result["shadow_reasons"],
             }
+
+            print(
+                f"🧠 REPLAY SHADOW : "
+                f"{result['shadow_sentiment']} | "
+                f"Score {result['shadow_score']} | "
+                f"Confidence {result['shadow_confidence']}%"
+            )
 
             self.viewer.print_trade(
                 trade,
