@@ -5,14 +5,26 @@ Observation-only engine.
 IMPORTANT:
 This module must never modify production trade decisions,
 entries, exits, stop-losses, targets, or grades.
+
+v1.1 behavior:
+- Calculates raw sentiment internally on each eligible signal evaluation.
+- Smooths the raw score per symbol to reduce one-candle flips.
+- Keeps the latest stabilized snapshot available to the caller.
+- Does not print anything.
+- Logging remains append-only for later validation.
 """
 
 import json
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
 
 LOG_FILE = Path("logs/shadow_sentiment.jsonl")
+
+# Keep a small rolling score history per symbol.  This is observation-only.
+_SCORE_HISTORY = {}
+_HISTORY_SIZE = 3
 
 
 def _direction(score):
@@ -27,13 +39,28 @@ def _confidence(score):
     return min(100, max(0, int(abs(score))))
 
 
+def _smooth_score(symbol, raw_score):
+    """
+    Stabilize sentiment using a short rolling average.
+
+    The raw engine can still react to new information, but one isolated
+    candle should not immediately flip the displayed sentiment.
+    """
+    history = _SCORE_HISTORY.setdefault(
+        symbol,
+        deque(maxlen=_HISTORY_SIZE),
+    )
+    history.append(int(raw_score))
+
+    return int(round(sum(history) / len(history)))
+
+
 def analyze_shadow_sentiment(stock, nifty=None):
     """
-    Observation-only sentiment assessment.
+    Calculate the raw observation-only sentiment.
 
     Score range: -100 to +100.
     """
-
     stock = stock or {}
     nifty = nifty or {}
 
@@ -105,17 +132,30 @@ def analyze_shadow_sentiment(stock, nifty=None):
             score -= 10
             reasons.append("RSI bearish zone")
 
-    score = max(-100, min(100, score))
+    return max(-100, min(100, score)), reasons
 
-    result = {
+
+def get_shadow_sentiment(symbol, stock_indicators, nifty_indicators=None):
+    """
+    Run shadow sentiment and return a stabilized snapshot.
+
+    This function has no side effects on the production trade object.
+    """
+    raw_score, reasons = analyze_shadow_sentiment(
+        stock_indicators,
+        nifty_indicators,
+    )
+
+    stable_score = _smooth_score(symbol, raw_score)
+
+    return {
         "timestamp": datetime.now().isoformat(),
-        "score": score,
-        "confidence": _confidence(score),
-        "sentiment": _direction(score),
+        "raw_score": raw_score,
+        "score": stable_score,
+        "confidence": _confidence(stable_score),
+        "sentiment": _direction(stable_score),
         "reasons": reasons,
     }
-
-    return result
 
 
 def record_shadow(symbol, production_trade, sentiment):
@@ -123,7 +163,6 @@ def record_shadow(symbol, production_trade, sentiment):
     Append-only shadow record.
     Never changes production_trade.
     """
-
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     record = {
@@ -132,6 +171,7 @@ def record_shadow(symbol, production_trade, sentiment):
         "production_action": production_trade.get("action"),
         "production_grade": production_trade.get("grade"),
         "production_confidence": production_trade.get("confidence"),
+        "shadow_raw_score": sentiment.get("raw_score"),
         "shadow_score": sentiment["score"],
         "shadow_confidence": sentiment["confidence"],
         "shadow_sentiment": sentiment["sentiment"],
@@ -144,12 +184,12 @@ def record_shadow(symbol, production_trade, sentiment):
 
 def run_shadow(symbol, production_trade, stock_indicators, nifty_indicators):
     """
-    Run shadow analysis and return the observation.
+    Run shadow analysis and return the stabilized observation.
 
     Production trade object is NEVER modified.
     """
-
-    sentiment = analyze_shadow_sentiment(
+    sentiment = get_shadow_sentiment(
+        symbol,
         stock_indicators,
         nifty_indicators,
     )

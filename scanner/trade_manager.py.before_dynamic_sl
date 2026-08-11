@@ -42,12 +42,7 @@ def register_trade(trade):
 def update_trade(symbol, price):
     """
     Update an active trade using the latest market price.
-
-    Dynamic stop-loss:
-      Entry -> original stop loss
-      Target 1 -> stop loss moves to entry
-      Target 2 -> stop loss moves to Target 1
-      Target 3 -> trade closes
+    Returns an event dictionary when something important happens.
     """
 
     if symbol not in _active_trades:
@@ -61,17 +56,15 @@ def update_trade(symbol, price):
         seconds = int(duration.total_seconds() % 60)
 
         risk = trade["risk"]
+
         qty = risk["recommended_qty"]
 
         if name == "TARGET_1_HIT":
             pnl = qty * abs(trade["target1"] - trade["entry"])
-
         elif name == "TARGET_2_HIT":
             pnl = qty * abs(trade["target2"] - trade["entry"])
-
         elif name == "TARGET_3_HIT":
             pnl = qty * abs(trade["target3"] - trade["entry"])
-
         else:
             pnl = -(qty * abs(trade["entry"] - trade["stop_loss"]))
 
@@ -83,55 +76,42 @@ def update_trade(symbol, price):
             "duration": f"{minutes:02d}m {seconds:02d}s",
             "exit_reason": "TARGET 3" if name == "TARGET_3_HIT" else "STOP LOSS",
             "pnl": round(pnl, 2),
-            "stop_loss": trade["stop_loss"],
         }
 
     if trade["action"] == "BUY":
 
-        # Target 1 -> move SL to Entry
         if not trade["target1_hit"] and price >= trade["target1"]:
             trade["target1_hit"] = True
-            trade["stop_loss"] = trade["entry"]
             return event("TARGET_1_HIT")
 
-        # Target 2 -> move SL to Target 1
         if not trade["target2_hit"] and price >= trade["target2"]:
             trade["target2_hit"] = True
-            trade["stop_loss"] = trade["target1"]
             return event("TARGET_2_HIT")
 
-        # Target 3 -> close trade permanently
         if not trade["target3_hit"] and price >= trade["target3"]:
             trade["target3_hit"] = True
             del _active_trades[symbol]
             return event("TARGET_3_HIT")
 
-        # Current dynamic/original stop loss
         if price <= trade["stop_loss"]:
             del _active_trades[symbol]
             return event("STOP_LOSS_HIT")
 
     else:
 
-        # Target 1 -> move SL to Entry
         if not trade["target1_hit"] and price <= trade["target1"]:
             trade["target1_hit"] = True
-            trade["stop_loss"] = trade["entry"]
             return event("TARGET_1_HIT")
 
-        # Target 2 -> move SL to Target 1
         if not trade["target2_hit"] and price <= trade["target2"]:
             trade["target2_hit"] = True
-            trade["stop_loss"] = trade["target1"]
             return event("TARGET_2_HIT")
 
-        # Target 3 -> close trade permanently
         if not trade["target3_hit"] and price <= trade["target3"]:
             trade["target3_hit"] = True
             del _active_trades[symbol]
             return event("TARGET_3_HIT")
 
-        # Current dynamic/original stop loss
         if price >= trade["stop_loss"]:
             del _active_trades[symbol]
             return event("STOP_LOSS_HIT")

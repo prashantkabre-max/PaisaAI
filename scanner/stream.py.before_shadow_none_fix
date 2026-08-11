@@ -215,30 +215,18 @@ class LiveStreamer:
         )
 
         if event:
-            active_after_event = get_active_trades().get(event["symbol"])
-            protected_profit = 0.0
-            if active_after_event and active_after_event.get("target2_hit"):
-                protected_profit = active_after_event["risk"]["recommended_qty"] * abs(
-                    active_after_event["target1"] - active_after_event["entry"]
-                )
             print()
             print("=" * 82)
 
             if event["event"] == "TARGET_1_HIT":
                 self.session_stats["target1"] += 1
-                print("🏆🏆 TARGET 1 ACHIEVED")
-                print(f"💰 Profit Level       : ₹{event['pnl']:,.2f}")
-                print("🛡️ STOP LOSS MOVED    : ENTRY")
-                print("🔒 Protected Minimum  : ₹0.00")
-                print("🎯 Next Target        : TARGET 2")
+                print("🏆🏆 TARGET 1 HIT")
+                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
 
             elif event["event"] == "TARGET_2_HIT":
                 self.session_stats["target2"] += 1
-                print("🥈🥈 TARGET 2 ACHIEVED")
-                print(f"💰 Profit Level       : ₹{event['pnl']:,.2f}")
-                print("🛡️ STOP LOSS MOVED    : TARGET 1")
-                print(f"🔒 Protected Minimum  : ₹{protected_profit:,.2f}")
-                print("🎯 Next Target        : TARGET 3")
+                print("🥈🥈 TARGET 2 HIT")
+                print(f"💰 Profit Booked : ₹{event['pnl']:,.2f}")
 
             elif event["event"] == "TARGET_3_HIT":
                 self.session_stats["target3"] += 1
@@ -246,7 +234,7 @@ class LiveStreamer:
                 self.session_stats["gross_profit"] += event["pnl"]
                 self.session_stats["active"] -= 1
                 print("👑👑👑 TARGET 3 ACHIEVED")
-                print(f"💰 Final Profit        : ₹{event['pnl']:,.2f}")
+                print(f"💰 Final Profit : ₹{event['pnl']:,.2f}")
                 print()
                 print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
                 print()
@@ -257,7 +245,7 @@ class LiveStreamer:
                 self.session_stats["gross_loss"] += abs(event["pnl"])
                 self.session_stats["active"] -= 1
                 print("😭😭 STOP LOSS HIT")
-                print(f"💸 Loss Booked        : ₹{abs(event['pnl']):,.2f}")
+                print(f"💸 Loss Booked : ₹{abs(event['pnl']):,.2f}")
                 print()
                 print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
                 print()
@@ -299,34 +287,19 @@ class LiveStreamer:
 
         trade["action"] = confirmed
 
-        # GOLDEN1 shadow remains observation-only.
-        # Use the stock's CLOSED 5m indicators for sentiment.
-        # NIFTY may not be ready yet, so safely use an empty dict.
-        stock_sentiment_indicators = indicators.get("5m", {}) or {}
-        nifty_sentiment_indicators = (
-            (MARKET_STATE.get("NIFTY") or {}).get("5m", {}) or {}
-        )
-
-        self.print_trade(
-            trade,
-            shadow_inputs=(
-                stock_sentiment_indicators,
-                nifty_sentiment_indicators,
-            ),
-        )
+        # Shadow sentiment is attached only after print_trade() accepts
+        # and registers the production trade. This guarantees one
+        # sentiment snapshot per printed trade banner and prevents
+        # rejected/already-active candidates from producing sentiment
+        # spam. Shadow remains observation-only.
+        self.print_trade(trade, stock_indicators=indicators)
 
         if (datetime.now() - self.last_summary).total_seconds() >= 600:
             self.print_session_summary()
             self.last_summary = datetime.now()
 
 
-    def print_trade(
-        self,
-        trade,
-        replay_mode=False,
-        replay_timestamp=None,
-        shadow_inputs=None,
-    ):
+    def print_trade(self, trade, replay_mode=False, replay_timestamp=None, stock_indicators=None):
 
         if trade is None:
             return
@@ -369,33 +342,22 @@ class LiveStreamer:
             elif trade["grade"] == "A":
                 self.session_stats["a"] += 1
 
-            # ========================================================
-            # GOLDEN1 SHADOW SENTIMENT
-            # Calculation is unchanged.
-            #
-            # It runs ONLY after the production trade is accepted.
-            # Therefore duplicate/rejected candidates create no
-            # shadow-sentiment noise.
-            # ========================================================
-            if shadow_inputs is not None:
-                stock_indicators, nifty_indicators = shadow_inputs
-
-                try:
-                    shadow = run_shadow(
-                        trade["symbol"],
-                        trade,
-                        stock_indicators or {},
-                        nifty_indicators or {},
-                    )
-
-                    trade["shadow_sentiment"] = shadow
-
-                except Exception as e:
-                    print(
-                        f"⚠️ SHADOW SENTIMENT ERROR: "
-                        f"{type(e).__name__}: {e}"
-                    )
-                    trade["shadow_sentiment"] = None
+            # Shadow sentiment is calculated only for an accepted
+            # production trade, so exactly one sentiment snapshot is
+            # attached to exactly one printed trade banner. It never
+            # changes the production decision.
+            try:
+                nifty_indicators = MARKET_STATE.get("NIFTY", {}).get("5m", {})
+                shadow = run_shadow(
+                    trade["symbol"],
+                    trade,
+                    stock_indicators or {},
+                    nifty_indicators,
+                )
+                trade["shadow_sentiment"] = shadow
+            except Exception as e:
+                print(f"⚠️ SHADOW SENTIMENT ERROR: {type(e).__name__}: {e}")
+                trade["shadow_sentiment"] = None
 
         #print(trade)
 
@@ -471,6 +433,15 @@ class LiveStreamer:
             print(f"⚖️ Risk vs Reward : Risk ₹1 → Reward ₹{rr:.1f}")
             print()
 
+        shadow = trade.get("shadow_sentiment")
+
+        if shadow:
+            print(
+                f"🧠 Sentiment       : "
+                f"{shadow['sentiment']} {shadow['score']:+d} "
+                f"({shadow['confidence']}%)"
+            )
+
         print(f"🎯 Confidence     : {trade['confidence']}%")
         print(f"🏅 Grade          : {trade['grade']}")
 
@@ -531,50 +502,19 @@ class LiveStreamer:
         active = get_active_trades()
 
         if active:
-            print("🟢 ACTIVE POSITIONS / DYNAMIC SL")
-            protected_total = 0.0
-            t1_protected = 0
-            t2_protected = 0
-
+            print("🟢 ACTIVE POSITIONS")
             for trade in sorted(active.values(), key=lambda x: x["trade_number"]):
                 duration = datetime.now() - trade["opened_at"]
                 mins = int(duration.total_seconds() // 60)
                 secs = int(duration.total_seconds() % 60)
 
-                risk = trade["risk"]
-                qty = risk["recommended_qty"]
-                entry = trade["entry"]
-                target1 = trade["target1"]
-                stop_loss = trade["stop_loss"]
-
-                if trade["target2_hit"]:
-                    sl_state = "TARGET 1"
-                    protected = qty * abs(target1 - entry)
-                    t2_protected += 1
-                elif trade["target1_hit"]:
-                    sl_state = "ENTRY"
-                    protected = 0.0
-                    t1_protected += 1
-                else:
-                    sl_state = "ORIGINAL"
-                    protected = 0.0
-
-                protected_total += protected
-
                 print(
                     f"#{trade['trade_number']:02d} "
                     f"{trade['action']:<4} "
                     f"{trade['display_symbol']:<15} "
-                    f"SL → {sl_state:<8} "
-                    f"₹{stop_loss:,.2f} "
                     f"⏱ {mins:02d}m {secs:02d}s"
                 )
 
-            print()
-            print("🛡️ DYNAMIC STOP LOSS STATUS")
-            print(f"🏆 T1 reached / SL → ENTRY    : {t1_protected}")
-            print(f"🥈 T2 reached / SL → TARGET 1 : {t2_protected}")
-            print(f"🔒 Protected Minimum Profit    : ₹{protected_total:,.2f}")
             print()
         print(f"🏆 Target 1 Hit           : {self.session_stats['target1']}")
         print(f"🥈 Target 2 Hit           : {self.session_stats['target2']}")

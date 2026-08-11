@@ -40,38 +40,7 @@ def parse_market_data(message):
             _last_vtt[instrument_key] = current_vtt
 
             if instrument_key == "NSE_EQ|HDFCBANK":
-                print(
-                    f"VTT={current_vtt} "
-                    f"PREV={previous_vtt} "
-                    f"INC={incremental_volume}"
-                )
-
-            # ---------------------------------------------------------
-            # MARKET DEPTH — UPSTOX FULL FEED
-            # ---------------------------------------------------------
-
-            market_level = market.get("marketLevel", {})
-            bid_ask_quotes = market_level.get("bidAskQuote", [])
-
-            bids = []
-            asks = []
-
-            for level in bid_ask_quotes[:5]:
-                bid_qty = level.get("bidQ", 0)
-                bid_price = level.get("bidP", 0)
-
-                ask_qty = level.get("askQ", 0)
-                ask_price = level.get("askP", 0)
-
-                bids.append({
-                    "quantity": bid_qty,
-                    "price": bid_price,
-                })
-
-                asks.append({
-                    "quantity": ask_qty,
-                    "price": ask_price,
-                })
+                print(f"VTT={current_vtt} PREV={previous_vtt} INC={incremental_volume}")
 
             parsed.append({
                 "symbol": instrument_key,
@@ -87,10 +56,6 @@ def parse_market_data(message):
 
                 # Incremental traded volume for candle builder
                 "volume": incremental_volume,
-
-                # Five-level market depth
-                "bids": bids,
-                "asks": asks,
             })
 
         if not parsed:

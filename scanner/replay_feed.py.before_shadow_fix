@@ -1,0 +1,551 @@
+"""
+PaisaAI Replay Engine V2
+
+Replay-only execution path.
+
+IMPORTANT:
+Production trade management is NEVER used here.
+
+Replay uses a private historical warm-up phase so the MTF indicator
+engine has enough 1m/3m/5m/15m/30m/60m history before the actual
+replay window begins.
+"""
+
+import config
+import upstox_client
+
+from datetime import date
+
+from data.candles import (
+    clear_symbol,
+    update_tick,
+)
+
+from scanner.stream import LiveStreamer
+from scanner.replay_strategy import (
+    STOPLOSS_MODE,
+    PRINT_STRATEGY,
+)
+from scanner.replay_trade_manager import (
+    register_trade,
+    update_trade,
+)
+
+from scanner.live_sentiment_shadow import run_shadow
+from scanner.runtime import MARKET_STATE
+from scanner.strategy_manager import manager
+
+
+# ---------------------------------------------------------------------------
+# Replay-only historical API client.
+# Production streaming/API objects are not modified.
+# ---------------------------------------------------------------------------
+
+_configuration = upstox_client.Configuration()
+_configuration.access_token = config.ACCESS_TOKEN
+_api_client = upstox_client.ApiClient(_configuration)
+_history_api = upstox_client.HistoryApi(_api_client)
+
+
+class ReplayFeed:
+
+    def __init__(self, speed=1.0):
+        self.speed = speed
+
+        # Build a LiveStreamer object so Replay uses the same indicator,
+        # MTF and decision pipeline.
+        #
+        # No live connection is started.
+        self.streamer = LiveStreamer()
+
+        self.trade_number = 0
+        self.active_strategy = STOPLOSS_MODE.upper()
+
+    def _next_trade_number(self):
+        self.trade_number += 1
+        return self.trade_number
+
+    def _process_exit(self, strategy, symbol, price):
+
+        event = update_trade(
+            strategy,
+            symbol,
+            price,
+        )
+
+        if event is None:
+            return
+
+        if event["event"] == "TARGET_1_HIT":
+
+            print(
+                f"🏆 REPLAY TARGET 1 | "
+                f"{event['display_symbol']} | "
+                f"₹{event['pnl']:,.2f}"
+            )
+
+        elif event["event"] == "TARGET_2_HIT":
+
+            print(
+                f"🥈 REPLAY TARGET 2 | "
+                f"{event['display_symbol']} | "
+                f"₹{event['pnl']:,.2f}"
+            )
+
+        elif event["event"] == "TARGET_3_HIT":
+
+            manager.register_win(
+                strategy,
+                event["pnl"],
+            )
+
+            print(
+                f"🟢 REPLAY WIN | "
+                f"{event['display_symbol']} | "
+                f"₹{event['pnl']:,.2f}"
+            )
+
+        elif event["event"] == "STOP_LOSS_HIT":
+
+            manager.register_loss(
+                strategy,
+                event["pnl"],
+            )
+
+            print(
+                f"🔴 REPLAY LOSS | "
+                f"{event['display_symbol']} | "
+                f"₹{abs(event['pnl']):,.2f}"
+            )
+
+    def _build_market(
+        self,
+        symbol,
+        candle,
+        five_minute_closed,
+    ):
+
+        return {
+            "symbol": symbol,
+            "ltp": candle["close"],
+            "previous_close": candle["open"],
+            "open": candle["open"],
+            "high": candle["high"],
+            "low": candle["low"],
+            "close": candle["close"],
+            "volume": candle.get("volume", 0),
+
+            # Replay-only marker.
+            "_replay": True,
+
+            # Authoritative signal gate.
+            "_5m_closed": five_minute_closed,
+        }
+
+    def _fetch_historical_candles(self, symbol):
+
+        """
+        Fetch the complete 1-minute historical set directly from Upstox.
+
+        This deliberately bypasses data.preload.preload_history(),
+        because the shared candle store keeps only MAX_CANDLES entries.
+
+        Replay needs the older candles for indicator warm-up before the
+        actual replay window starts.
+        """
+
+        try:
+
+            response = _history_api.get_historical_candle_data(
+                symbol,
+                "1minute",
+                date.today().strftime("%Y-%m-%d"),
+                "2.0",
+            )
+
+            raw_candles = list(response.data.candles)
+
+            # Upstox returns newest -> oldest.
+            raw_candles.reverse()
+
+            candles = []
+
+            for c in raw_candles:
+
+                candles.append(
+                    {
+                        "timestamp": c[0],
+                        "open": c[1],
+                        "high": c[2],
+                        "low": c[3],
+                        "close": c[4],
+                        "volume": c[5],
+                    }
+                )
+
+            return candles
+
+        except Exception as exc:
+
+            print(
+                f"❌ Replay history fetch failed for "
+                f"{symbol}: {exc}"
+            )
+
+            return []
+
+    def replay_symbol(self, symbol):
+
+        # ------------------------------------------------------------------
+        # Fetch the complete historical set BEFORE touching the runtime
+        # candle store.
+        #
+        # This gives Replay:
+        #
+        #     historical warm-up
+        #             +
+        #     actual replay window
+        #
+        # without future leakage.
+        # ------------------------------------------------------------------
+
+        all_candles = self._fetch_historical_candles(
+            symbol
+        )
+
+        if not all_candles:
+            return 0
+
+        # Keep the same actual Replay window we have been testing.
+        replay_count = min(
+            501,
+            len(all_candles),
+        )
+
+        if replay_count < 2:
+            return 0
+
+        warmup_candles = all_candles[:-replay_count]
+        replay_candles = all_candles[-replay_count:]
+
+        # ------------------------------------------------------------------
+        # Start Replay from a clean symbol store.
+        # ------------------------------------------------------------------
+
+        clear_symbol(symbol)
+
+        # ------------------------------------------------------------------
+        # INDICATOR WARM-UP
+        #
+        # No signals.
+        # No trades.
+        # No exits.
+        #
+        # These candles exist only to establish proper historical state
+        # for all MTF indicators.
+        # ------------------------------------------------------------------
+
+        for candle in warmup_candles:
+
+            update_tick(
+                symbol=symbol,
+                price=candle["close"],
+                volume=candle.get("volume", 0),
+                timestamp=candle["timestamp"],
+            )
+
+        print(
+            f"🧠 Replay warm-up : "
+            f"{len(warmup_candles)} candles"
+        )
+
+        print(
+            f"🎬 Replay window  : "
+            f"{len(replay_candles)} candles"
+        )
+
+        processed = 0
+        strategy = self.active_strategy
+
+        # ------------------------------------------------------------------
+        # ACTUAL REPLAY WINDOW
+        # ------------------------------------------------------------------
+
+        for candle in replay_candles:
+
+            candle_update = update_tick(
+                symbol=symbol,
+                price=candle["close"],
+                volume=candle.get("volume", 0),
+                timestamp=candle["timestamp"],
+            )
+
+            # --------------------------------------------------------------
+            # EXIT MONITORING
+            #
+            # Open trades are checked on every historical candle.
+            # This mirrors production's every-tick exit monitoring.
+            # --------------------------------------------------------------
+
+            self._process_exit(
+                strategy,
+                symbol,
+                candle["close"],
+            )
+
+            # --------------------------------------------------------------
+            # AUTHORITATIVE 5M SIGNAL GATE
+            # --------------------------------------------------------------
+
+            five_minute_closed = False
+
+            if candle_update is not None:
+
+                closed_timeframes = candle_update.get(
+                    "closed_timeframes",
+                    [],
+                )
+
+                five_minute_closed = (
+                    "5m" in closed_timeframes
+                )
+
+            market = self._build_market(
+                symbol,
+                candle,
+                five_minute_closed,
+            )
+
+            # --------------------------------------------------------------
+            # SIGNAL GENERATION
+            # --------------------------------------------------------------
+
+            if five_minute_closed:
+
+                timeframe_indicators = (
+                    self.streamer.calculate_indicators(
+                        market
+                    )
+                )
+
+                trade = self.streamer.calculate_trade(
+                    timeframe_indicators
+                )
+
+                # ==========================================================
+                # REPLAY SHADOW SENTIMENT
+                # ==========================================================
+                # Observation only.
+                # Replay writes NO live shadow log.
+                # Replay sentiment NEVER changes score, grade, action,
+                # risk, SignalState, or trade registration.
+                #
+                # Stock input  : closed 5m indicators
+                # Market input : NIFTY closed 5m indicators
+                # ==========================================================
+
+                if trade is not None:
+
+                    stock_sentiment_indicators = (
+                        timeframe_indicators.get("5m", {})
+                        if isinstance(timeframe_indicators, dict)
+                        else {}
+                    )
+
+                    if symbol == "NSE_INDEX|Nifty 50":
+                        MARKET_STATE["NIFTY"] = timeframe_indicators
+
+                    nifty_sentiment_indicators = (
+                        (MARKET_STATE.get("NIFTY") or {}).get(
+                            "5m",
+                            {},
+                        )
+                    )
+
+                    replay_shadow = run_shadow(
+                        trade["symbol"],
+                        trade,
+                        stock_sentiment_indicators,
+                        nifty_sentiment_indicators,
+                        record=False,
+                    )
+
+                    print()
+                    print(
+                        f"🧠 REPLAY SHADOW : "
+                        f"{replay_shadow['sentiment']} "
+                        f"| Score {replay_shadow['score']:+d} "
+                        f"| Confidence "
+                        f"{replay_shadow['confidence']}%"
+                    )
+
+                    if replay_shadow["reasons"]:
+                        print(
+                            "   └─ "
+                            + " | ".join(
+                                replay_shadow["reasons"]
+                            )
+                        )
+
+                    # Retain production SignalState confirmation logic.
+                    confirmed = (
+                        self.streamer.signal_state.confirm(
+                            trade["symbol"],
+                            trade["action"],
+                        )
+                    )
+
+                    if confirmed is not None:
+
+                        trade["action"] = confirmed
+
+                        # Replay requires valid risk.
+                        if trade.get("risk") is not None:
+
+                            trade["trade_number"] = (
+                                self._next_trade_number()
+                            )
+
+                            registered = register_trade(
+                                strategy,
+                                trade,
+                            )
+
+                            if registered:
+
+                                manager.register_trade(
+                                    strategy
+                                )
+
+                                print()
+                                print("=" * 78)
+                                print("🎬 REPLAY TRADE OPEN")
+
+                                print(
+                                    f"🔢 Trade No. : "
+                                    f"{trade['trade_number']}"
+                                )
+
+                                print(
+                                    f"📊 Stock     : "
+                                    f"{trade.get('display_symbol')}"
+                                )
+
+                                print(
+                                    f"➡️ Action    : "
+                                    f"{trade['action']}"
+                                )
+
+                                print(
+                                    f"🏷 Grade     : "
+                                    f"{trade['grade']}"
+                                )
+
+                                print(
+                                    f"🎯 Confidence: "
+                                    f"{trade['confidence']}%"
+                                )
+
+                                print(
+                                    f"🧠 Strategy  : "
+                                    f"{strategy}"
+                                )
+
+                                print(
+                                    f"💰 Entry     : "
+                                    f"₹{trade['risk']['entry']:.2f}"
+                                )
+
+                                print(
+                                    f"🛑 Stop Loss : "
+                                    f"₹{trade['risk']['stop_loss']:.2f}"
+                                )
+
+                                print(
+                                    f"🎯 Target 1  : "
+                                    f"₹{trade['risk']['target1']:.2f}"
+                                )
+
+                                print(
+                                    f"🎯 Target 2  : "
+                                    f"₹{trade['risk']['target2']:.2f}"
+                                )
+
+                                print(
+                                    f"🎯 Target 3  : "
+                                    f"₹{trade['risk']['target3']:.2f}"
+                                )
+
+                                print("=" * 78)
+                                print()
+
+            processed += 1
+
+        return processed
+
+    def replay_watchlist(self, watchlist):
+
+        total_symbols = 0
+        total_candles = 0
+
+        print()
+        print("=" * 78)
+        print("🎬 PAISAAI REPLAY ENGINE V2")
+        print("=" * 78)
+
+        if PRINT_STRATEGY:
+
+            print(
+                f"🧠 Replay Strategy : "
+                f"{self.active_strategy}"
+            )
+
+        print("=" * 78)
+
+        for symbol in watchlist:
+
+            candles = self.replay_symbol(
+                symbol
+            )
+
+            if candles == 0:
+                continue
+
+            total_symbols += 1
+            total_candles += candles
+
+            print(
+                f"✅ {symbol:<30} "
+                f"{candles:>4} candles"
+            )
+
+        print()
+        print("=" * 78)
+        print("Replay Completed")
+
+        print(
+            f"Symbols : {total_symbols}"
+        )
+
+        print(
+            f"Candles : {total_candles}"
+        )
+
+        print("=" * 78)
+
+        manager.summary()
+
+
+def start_replay_feed():
+
+    from scanner.watchlist import get_watchlist
+
+    replay = ReplayFeed()
+
+    replay.replay_watchlist(
+        get_watchlist()
+    )
+
+
+def run():
+    start_replay_feed()
