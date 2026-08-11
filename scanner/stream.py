@@ -14,6 +14,10 @@ from scanner.runtime import MARKET_STATE
 from scanner.signal_state import SignalState
 from scanner.live_sentiment_shadow import run_shadow
 from scanner.context_scoring import calculate_context_score
+from scanner.institutional_flow import (
+    get_flow_for_timestamp,
+    refresh_live,
+)
 from scanner.market_depth import observe as observe_market_depth
 
 from scanner.trade_manager import (
@@ -32,6 +36,212 @@ configuration = upstox_client.Configuration()
 configuration.access_token = config.ACCESS_TOKEN
 
 api_client = upstox_client.ApiClient(configuration)
+
+
+def print_engine_breakdown(context):
+    """
+    Professional engine-by-engine score display.
+
+    IMPORTANT:
+    This function is DISPLAY ONLY.
+    It does not modify scoring, confidence, grade,
+    trade selection, or risk management.
+    """
+
+    context = context or {}
+
+    technical = context.get(
+        "technical_confidence",
+        0,
+    )
+
+    sentiment_raw = context.get(
+        "sentiment_raw_score",
+        context.get("sentiment_score", 0),
+    )
+
+    sentiment_adjustment = context.get(
+        "sentiment_adjustment",
+        0,
+    )
+
+    sentiment = context.get(
+        "sentiment",
+        {},
+    ) or {}
+
+    sentiment_label = (
+        sentiment.get("sentiment")
+        or sentiment.get("label")
+        or sentiment.get("direction")
+        or "N/A"
+    )
+
+    depth_confirmed = (
+        context.get("depth_confirmed")
+        or "UNCONFIRMED"
+    )
+
+    depth_adjustment = context.get(
+        "depth_adjustment",
+        0,
+    )
+
+    relative = context.get(
+        "relative_strength",
+        {},
+    ) or {}
+
+    relative_raw = relative.get(
+        "relative_strength",
+        relative.get("score", 0),
+    )
+
+    relative_rating = (
+        relative.get("strength")
+        or relative.get("rating")
+        or "N/A"
+    )
+
+    relative_adjustment = context.get(
+        "relative_strength_adjustment",
+        0,
+    )
+
+    sector = context.get(
+        "sector_strength",
+        {},
+    ) or {}
+
+    sector_raw = sector.get(
+        "sector_strength",
+        sector.get("score", 0),
+    )
+
+    sector_rating = (
+        sector.get("rating")
+        or sector.get("strength")
+        or "N/A"
+    )
+
+    sector_adjustment = context.get(
+        "sector_adjustment",
+        0,
+    )
+
+    institutional = context.get(
+        "institutional",
+        {},
+    ) or {}
+
+    fii_net = institutional.get(
+        "fii_net",
+        0,
+    )
+
+    dii_net = institutional.get(
+        "dii_net",
+        0,
+    )
+
+    institutional_adjustment = context.get(
+        "institutional_adjustment",
+        institutional.get("adjustment", 0),
+    )
+
+    fii_available = institutional.get(
+        "available",
+        False,
+    )
+
+    fii_date = institutional.get(
+        "date",
+        "N/A",
+    )
+
+    fii_source = institutional.get(
+        "source",
+        "N/A",
+    )
+
+    final_confidence = context.get(
+        "confidence",
+        0,
+    )
+
+    final_grade = context.get(
+        "grade",
+        "N/A",
+    )
+
+    print()
+    print("🧠 ENGINE SCORE BREAKDOWN")
+    print("─" * 82)
+
+    print(
+        f"📊 Technical MTF     : "
+        f"{technical} "
+        f"(foundation)"
+    )
+
+    print(
+        f"📰 Sentiment         : "
+        f"{sentiment_raw:+} "
+        f"→ {sentiment_adjustment:+d} "
+        f"[{sentiment_label}]"
+    )
+
+    print(
+        f"📚 Market Depth      : "
+        f"{depth_confirmed} "
+        f"→ {depth_adjustment:+d}"
+    )
+
+    print(
+        f"📈 Relative Strength : "
+        f"{relative_raw} "
+        f"[{relative_rating}] "
+        f"→ {relative_adjustment:+d}"
+    )
+
+    print(
+        f"🏭 Sector Strength   : "
+        f"{sector_raw} "
+        f"[{sector_rating}] "
+        f"→ {sector_adjustment:+d}"
+    )
+
+    if fii_available:
+        print(
+            f"🏦 FII/DII           : "
+            f"FII {fii_net:,.2f} | "
+            f"DII {dii_net:,.2f} "
+            f"→ {institutional_adjustment:+d}"
+        )
+        print(
+            f"   └─ Date: {fii_date} | "
+            f"Source: {fii_source}"
+        )
+    else:
+        print(
+            f"🏦 FII/DII           : "
+            f"UNAVAILABLE "
+            f"→ {institutional_adjustment:+d}"
+        )
+
+    print("─" * 82)
+
+    print(
+        f"🎯 FINAL CONFIDENCE  : "
+        f"{final_confidence}%"
+    )
+
+    print(
+        f"🏅 FINAL GRADE       : "
+        f"{final_grade}"
+    )
+
+    print("─" * 82)
 
 
 class LiveStreamer:
@@ -172,6 +382,7 @@ class LiveStreamer:
         self,
         timeframe_indicators,
         market_depth=None,
+        market_timestamp=None,
     ):
 
         from scanner.mtf import calculate_mtf_score
@@ -213,12 +424,60 @@ class LiveStreamer:
             )
         )
 
+        # --------------------------------------------------------
+        # RELATIVE STRENGTH
+        # --------------------------------------------------------
+        # Calculated directly from stock vs Nifty 5m context.
+
+        # --------------------------------------------------------
+        # SECTOR STRENGTH
+        # --------------------------------------------------------
+        # Prefer genuine sector data supplied with the market
+        # context. If unavailable, contribution remains neutral.
+        sector_change = stock_indicators.get(
+            "sector_change"
+        )
+
+        if sector_change is None:
+
+            sector_key = (
+                stock_indicators.get("sector")
+            )
+
+            if sector_key:
+                sector_change = (
+                    MARKET_STATE.get(
+                        "SECTOR_CHANGES",
+                        {},
+                    ).get(sector_key)
+                )
+
+        # --------------------------------------------------------
+        # FII / DII
+        # --------------------------------------------------------
+        # Replay uses the exact replay date.
+        # Live uses the latest available daily snapshot.
+        institutional_flow = (
+            get_flow_for_timestamp(
+                market_timestamp
+            )
+        )
+
+        if institutional_flow is None:
+            institutional_flow = (
+                MARKET_STATE.get(
+                    "INSTITUTIONAL_FLOW"
+                )
+            )
+
         context = calculate_context_score(
             score_result.get("confidence", 0),
             direction,
             stock_indicators,
             nifty_indicators,
             market_depth,
+            sector_change=sector_change,
+            institutional_flow=institutional_flow,
         )
 
         score_result = dict(score_result)
@@ -363,6 +622,9 @@ class LiveStreamer:
         trade = self.calculate_trade(
             indicators,
             market_depth=depth,
+            market_timestamp=market.get(
+                "timestamp"
+            ),
         )
 
         if trade is None:
@@ -604,12 +866,7 @@ class LiveStreamer:
         context = trade.get("context_score")
 
         if context:
-            print(
-                f"🧮 SCORE MIX       : "
-                f"Technical {context['technical_confidence']} "
-                f"| Sentiment {context['sentiment_adjustment']:+d} "
-                f"| Depth {context['depth_adjustment']:+d}"
-            )
+            print_engine_breakdown(context)
 
         if trade["passed"]:
             print(f"✅ Confirmations  : {', '.join(trade['passed'])}")
@@ -647,7 +904,44 @@ class LiveStreamer:
         print("Connection Closed")
 
     def start(self):
+
+        print()
+        print("=" * 78)
+        print("🏦 LOADING FII / DII INSTITUTIONAL FLOW")
+        print("=" * 78)
+
+        institutional = refresh_live()
+
+        if institutional:
+
+            fii = institutional.get("fii") or {}
+            dii = institutional.get("dii") or {}
+
+            print(
+                f"FII Net : ₹{fii.get('net', 0):,.2f} Cr"
+            )
+
+            print(
+                f"DII Net : ₹{dii.get('net', 0):,.2f} Cr"
+            )
+
+            print(
+                f"Date    : {institutional.get('date')}"
+            )
+
+            print(
+                "Source  : UPSTOX"
+            )
+
+        else:
+            print(
+                "⚠️ FII/DII unavailable — "
+                "institutional contribution will remain neutral."
+            )
+
+        print("=" * 78)
         print("Connecting...")
+
         self.streamer.connect()
 
     def print_session_summary(self, summary_time=None):

@@ -41,6 +41,12 @@ def calculate_indicators(data, all_indicators=None):
         "change": round(change, 2),
         "change_percent": round(change_percent, 2),
 
+        # Optional context-engine data.
+        # Real sector feeds can populate these fields without
+        # changing the technical indicator engine.
+        "sector": data.get("sector"),
+        "sector_change": data.get("sector_change"),
+
         "open": data.get("open"),
         "high": data.get("high"),
         "low": data.get("low"),

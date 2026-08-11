@@ -467,6 +467,9 @@ class ReplayFeed:
                 trade = self.streamer.calculate_trade(
                     timeframe_indicators,
                     market_depth=depth,
+                    market_timestamp=candle.get(
+                        "timestamp"
+                    ),
                 )
 
                 if trade is not None:
@@ -677,3 +680,6 @@ def start_replay_feed():
 
 def run():
     start_replay_feed()
+
+if __name__ == "__main__":
+    run()

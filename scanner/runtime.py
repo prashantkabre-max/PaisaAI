@@ -5,6 +5,13 @@ PaisaAI Runtime State
 MARKET_STATE = {
     "NIFTY": None,
     "BANKNIFTY": None,
+
+    # Institutional daily context.
+    "INSTITUTIONAL_FLOW": None,
+
+    # Optional real sector feed.
+    # Keyed by stock symbol or sector identifier.
+    "SECTOR_CHANGES": {},
 }
 
 # ==========================================================
