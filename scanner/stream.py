@@ -13,6 +13,8 @@ from scanner.alerts import process_alert
 from scanner.runtime import MARKET_STATE
 from scanner.signal_state import SignalState
 from scanner.live_sentiment_shadow import run_shadow
+from scanner.context_scoring import calculate_context_score
+from scanner.market_depth import observe as observe_market_depth
 
 from scanner.trade_manager import (
     register_trade,
@@ -166,7 +168,11 @@ class LiveStreamer:
 
         return timeframe_indicators
 
-    def calculate_trade(self, timeframe_indicators):
+    def calculate_trade(
+        self,
+        timeframe_indicators,
+        market_depth=None,
+    ):
 
         from scanner.mtf import calculate_mtf_score
 
@@ -185,29 +191,99 @@ class LiveStreamer:
 
         if sell_score["confidence"] > buy_score["confidence"]:
             score_result = sell_score
+            direction = "SELL"
         else:
             score_result = buy_score
+            direction = "BUY"
+
+        # ========================================================
+        # CONTEXT SCORE
+        # Technical MTF score remains the foundation.
+        # Sentiment + Market Depth now contribute directionally.
+        # ========================================================
+
+        stock_indicators = (
+            timeframe_indicators.get("5m", {})
+        )
+
+        nifty_indicators = (
+            (MARKET_STATE.get("NIFTY") or {}).get(
+                "5m",
+                {},
+            )
+        )
+
+        context = calculate_context_score(
+            score_result.get("confidence", 0),
+            direction,
+            stock_indicators,
+            nifty_indicators,
+            market_depth,
+        )
+
+        score_result = dict(score_result)
+
+        score_result["technical_confidence"] = (
+            context["technical_confidence"]
+        )
+
+        score_result["confidence"] = (
+            context["confidence"]
+        )
+
+        score_result["grade"] = (
+            context["grade"]
+        )
+
+        score_result["context_score"] = context
 
         indicators = timeframe_indicators.get("1m")
 
         if indicators is None:
             return None
 
-        # Production ATR stop-loss uses the closed 5m ATR.
-        # Entry/MTF signal logic remains unchanged.
+        # Production ATR stop-loss uses closed 5m ATR.
         atr_5m = timeframe_indicators.get("5m", {}).get("atr")
 
         if atr_5m is not None:
             indicators = dict(indicators)
             indicators["atr"] = atr_5m
 
-        return evaluate_trade(
+        trade = evaluate_trade(
             indicators,
             score_result,
         )
 
+        if trade is not None:
+            trade["context_score"] = context
+
+        return trade
+
 
     def process_completed_market(self, market):
+
+        # ============================================================
+        # MARKET DEPTH V1
+        # Observation-only.
+        # Replay has no live order-book data.
+        # ============================================================
+        if not market.get("_replay", False):
+
+            depth = observe_market_depth(
+                market.get("symbol"),
+                market.get("bids", []),
+                market.get("asks", []),
+                datetime.now(),
+            )
+
+            if depth is not None:
+
+                if depth["confirmed"]:
+
+                    print(
+                        f"   ✅ DEPTH CONFIRMED : "
+                        f"{depth['confirmed']}"
+                    )
 
         event = update_trade(
             market["symbol"],
@@ -284,7 +360,10 @@ class LiveStreamer:
         elif market["symbol"] == "NSE_INDEX|Nifty Bank":
             MARKET_STATE["BANKNIFTY"] = indicators
 
-        trade = self.calculate_trade(indicators)
+        trade = self.calculate_trade(
+            indicators,
+            market_depth=depth,
+        )
 
         if trade is None:
             return
@@ -326,6 +405,7 @@ class LiveStreamer:
         replay_mode=False,
         replay_timestamp=None,
         shadow_inputs=None,
+        preserve_trade_number=False,
     ):
 
         if trade is None:
@@ -336,8 +416,10 @@ class LiveStreamer:
 
         if replay_mode:
 
-            self.trade_number += 1
-            trade["trade_number"] = self.trade_number
+            if not preserve_trade_number:
+
+                self.trade_number += 1
+                trade["trade_number"] = self.trade_number
 
             alert = {
                 "generated_at": replay_timestamp,
@@ -433,6 +515,51 @@ class LiveStreamer:
         print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
         print(f"🔢 Trade No.     : {trade['trade_number']}")
 
+        shadow = trade.get("shadow_sentiment")
+
+        if shadow:
+            print(
+                f"🧠 SHADOW SENTIMENT : "
+                f"{shadow['sentiment']} "
+                f"| Score {shadow['score']:+d} "
+                f"| Confidence {shadow['confidence']}%"
+            )
+
+            if shadow.get("reasons"):
+                print(
+                    "   └─ "
+                    + " | ".join(shadow["reasons"])
+                )
+
+        depth = trade.get("market_depth")
+
+        if depth:
+            state = depth.get("state", "UNKNOWN")
+            buy_qty = depth.get("buy_qty", 0)
+            sell_qty = depth.get("sell_qty", 0)
+            ratio = depth.get("ratio", 1.0)
+            persistence = depth.get("persistence", 0)
+            confirmed = depth.get("confirmed") or "NO"
+            source = depth.get("source", "LIVE")
+
+            if ratio == float("inf"):
+                ratio_text = "INF"
+            else:
+                ratio_text = f"{ratio:.2f}"
+
+            print("📚 MARKET DEPTH")
+            print(f"   State       : {state}")
+            print(f"   BUY Qty     : {buy_qty:,}")
+            print(f"   SELL Qty    : {sell_qty:,}")
+            print(f"   Ratio       : {ratio_text}")
+            print(f"   Persistence : {persistence}/10")
+            print(f"   Confirmed   : {confirmed}")
+            print(f"   Source      : {source}")
+
+        else:
+            print("📚 MARKET DEPTH     : NO SAMPLE")
+
+        print("🛡️ DYNAMIC SL      : ACTIVE")
         print("=" * 82)
 
         if trade["risk"]:
@@ -473,6 +600,16 @@ class LiveStreamer:
 
         print(f"🎯 Confidence     : {trade['confidence']}%")
         print(f"🏅 Grade          : {trade['grade']}")
+
+        context = trade.get("context_score")
+
+        if context:
+            print(
+                f"🧮 SCORE MIX       : "
+                f"Technical {context['technical_confidence']} "
+                f"| Sentiment {context['sentiment_adjustment']:+d} "
+                f"| Depth {context['depth_adjustment']:+d}"
+            )
 
         if trade["passed"]:
             print(f"✅ Confirmations  : {', '.join(trade['passed'])}")
