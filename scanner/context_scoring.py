@@ -109,10 +109,37 @@ def calculate_context_score(
     # SENTIMENT
     # ============================================================
 
-    sentiment = calculate_sentiment(
-        stock_indicators,
-        nifty_indicators,
-    )
+    # Sentiment Engine v1 currently accepts one market-data argument.
+    # Keep this compatibility wrapper so the shared context engine works
+    # with both the current v1 API and a future two-input implementation.
+    try:
+        import inspect
+
+        parameter_count = len(
+            [
+                p
+                for p in inspect.signature(
+                    calculate_sentiment
+                ).parameters.values()
+                if p.kind
+                in (
+                    p.POSITIONAL_ONLY,
+                    p.POSITIONAL_OR_KEYWORD,
+                )
+            ]
+        )
+    except Exception:
+        parameter_count = 1
+
+    if parameter_count >= 2:
+        sentiment = calculate_sentiment(
+            stock_indicators,
+            nifty_indicators,
+        )
+    else:
+        sentiment = calculate_sentiment(
+            stock_indicators,
+        )
 
     raw_sentiment = float(
         sentiment.get("score", 0) or 0

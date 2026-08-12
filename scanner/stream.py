@@ -14,11 +14,17 @@ from scanner.runtime import MARKET_STATE
 from scanner.signal_state import SignalState
 from scanner.live_sentiment_shadow import run_shadow
 from scanner.context_scoring import calculate_context_score
+from scanner.live_context import (
+    get_nifty_context,
+    get_sector_change,
+    update_live_context,
+)
 from scanner.institutional_flow import (
     get_flow_for_timestamp,
     refresh_live,
 )
-from scanner.market_depth import observe as observe_market_depth
+from scanner.market_depth import update as update_market_depth
+from scanner.nse_context import get_market_depth as get_nse_market_depth
 
 from scanner.trade_manager import (
     register_trade,
@@ -267,12 +273,20 @@ class LiveStreamer:
             "target2": 0,
             "target3": 0,
             "stoploss": 0,
+            "protected_stop": 0,
+            "breakeven": 0,
             "wins": 0,
             "losses": 0,
             "gross_profit": 0.0,
             "gross_loss": 0.0,
         }
         self.signal_state = SignalState()
+
+        # Live market-depth sampling is observation-only.
+        # Persist one depth observation per symbol per minute so the
+        # 10-observation confirmation rule is not advanced by every tick.
+        self._depth_snapshots = {}
+        self._depth_last_sample = {}
 
 
         self.streamer = upstox_client.MarketDataStreamerV3(
@@ -303,6 +317,11 @@ class LiveStreamer:
 
         if market is None:
             return None
+
+        # Context market state is updated on every tick so RS/Sector inputs
+        # do not depend on websocket message ordering or a simultaneous 5m
+        # close. This is observation-only and does not touch trade management.
+        update_live_context(market)
 
         candle_update = update_tick(
             symbol=market["symbol"],
@@ -408,16 +427,18 @@ class LiveStreamer:
             direction = "BUY"
 
         # ========================================================
-        # CONTEXT SCORE
-        # Technical MTF score remains the foundation.
-        # Sentiment + Market Depth now contribute directionally.
+        # UNIFIED CONTEXT SCORE
+        # Technical MTF remains the foundation.
+        # Sentiment + Depth + Relative Strength + Sector Strength
+        # + FII/DII contribute through the same consolidated path
+        # used by Replay.
         # ========================================================
 
         stock_indicators = (
             timeframe_indicators.get("5m", {})
         )
 
-        nifty_indicators = (
+        nifty_indicators = get_nifty_context(
             (MARKET_STATE.get("NIFTY") or {}).get(
                 "5m",
                 {},
@@ -425,38 +446,17 @@ class LiveStreamer:
         )
 
         # --------------------------------------------------------
-        # RELATIVE STRENGTH
-        # --------------------------------------------------------
-        # Calculated directly from stock vs Nifty 5m context.
-
-        # --------------------------------------------------------
         # SECTOR STRENGTH
         # --------------------------------------------------------
-        # Prefer genuine sector data supplied with the market
-        # context. If unavailable, contribution remains neutral.
-        sector_change = stock_indicators.get(
-            "sector_change"
+        sector_change = get_sector_change(
+            stock_indicators.get("symbol"),
+            explicit_change=stock_indicators.get("sector_change"),
+            explicit_sector=stock_indicators.get("sector"),
         )
-
-        if sector_change is None:
-
-            sector_key = (
-                stock_indicators.get("sector")
-            )
-
-            if sector_key:
-                sector_change = (
-                    MARKET_STATE.get(
-                        "SECTOR_CHANGES",
-                        {},
-                    ).get(sector_key)
-                )
 
         # --------------------------------------------------------
         # FII / DII
         # --------------------------------------------------------
-        # Replay uses the exact replay date.
-        # Live uses the latest available daily snapshot.
         institutional_flow = (
             get_flow_for_timestamp(
                 market_timestamp
@@ -501,8 +501,12 @@ class LiveStreamer:
         if indicators is None:
             return None
 
-        # Production ATR stop-loss uses closed 5m ATR.
-        atr_5m = timeframe_indicators.get("5m", {}).get("atr")
+        # Production ATR stop-loss remains unchanged:
+        # use the closed 5m ATR for the trade risk layer.
+        atr_5m = timeframe_indicators.get(
+            "5m",
+            {},
+        ).get("atr")
 
         if atr_5m is not None:
             indicators = dict(indicators)
@@ -516,33 +520,13 @@ class LiveStreamer:
         if trade is not None:
             trade["context_score"] = context
 
+            if market_depth is not None:
+                trade["market_depth"] = market_depth
+
         return trade
 
 
     def process_completed_market(self, market):
-
-        # ============================================================
-        # MARKET DEPTH V1
-        # Observation-only.
-        # Replay has no live order-book data.
-        # ============================================================
-        if not market.get("_replay", False):
-
-            depth = observe_market_depth(
-                market.get("symbol"),
-                market.get("bids", []),
-                market.get("asks", []),
-                datetime.now(),
-            )
-
-            if depth is not None:
-
-                if depth["confirmed"]:
-
-                    print(
-                        f"   ✅ DEPTH CONFIRMED : "
-                        f"{depth['confirmed']}"
-                    )
 
         event = update_trade(
             market["symbol"],
@@ -550,62 +534,164 @@ class LiveStreamer:
         )
 
         if event:
-            active_after_event = get_active_trades().get(event["symbol"])
-            protected_profit = 0.0
-            if active_after_event and active_after_event.get("target2_hit"):
-                protected_profit = active_after_event["risk"]["recommended_qty"] * abs(
-                    active_after_event["target1"] - active_after_event["entry"]
-                )
             print()
             print("=" * 82)
 
             if event["event"] == "TARGET_1_HIT":
                 self.session_stats["target1"] += 1
                 print("🏆🏆 TARGET 1 ACHIEVED")
-                print(f"💰 Profit Level       : ₹{event['pnl']:,.2f}")
                 print("🛡️ STOP LOSS MOVED    : ENTRY")
                 print("🔒 Protected Minimum  : ₹0.00")
                 print("🎯 Next Target        : TARGET 2")
+                print("ℹ️ P&L                : NOT REALIZED — TARGET 1 IS A MILESTONE")
 
             elif event["event"] == "TARGET_2_HIT":
                 self.session_stats["target2"] += 1
                 print("🥈🥈 TARGET 2 ACHIEVED")
-                print(f"💰 Profit Level       : ₹{event['pnl']:,.2f}")
                 print("🛡️ STOP LOSS MOVED    : TARGET 1")
-                print(f"🔒 Protected Minimum  : ₹{protected_profit:,.2f}")
                 print("🎯 Next Target        : TARGET 3")
+                print("ℹ️ P&L                : NOT REALIZED — TARGET 2 IS A MILESTONE")
 
             elif event["event"] == "TARGET_3_HIT":
+                realized = event["realized_pnl"]
                 self.session_stats["target3"] += 1
                 self.session_stats["wins"] += 1
-                self.session_stats["gross_profit"] += event["pnl"]
+                self.session_stats["gross_profit"] += max(realized, 0.0)
+                self.session_stats["gross_loss"] += abs(min(realized, 0.0))
                 self.session_stats["active"] -= 1
                 print("👑👑👑 TARGET 3 ACHIEVED")
-                print(f"💰 Final Profit        : ₹{event['pnl']:,.2f}")
+                print(f"💰 FINAL REALIZED PROFIT : ₹{realized:,.2f}")
                 print()
                 print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
                 print()
 
-            elif event["event"] == "STOP_LOSS_HIT":
-                self.session_stats["stoploss"] += 1
-                self.session_stats["losses"] += 1
-                self.session_stats["gross_loss"] += abs(event["pnl"])
+            elif event["event"] == "PROTECTED_STOP_HIT":
+                realized = event["realized_pnl"]
+                self.session_stats["protected_stop"] += 1
                 self.session_stats["active"] -= 1
-                print("😭😭 STOP LOSS HIT")
-                print(f"💸 Loss Booked        : ₹{abs(event['pnl']):,.2f}")
-                print()
-                print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
-                print()
+
+                if realized > 0:
+                    self.session_stats["wins"] += 1
+                    self.session_stats["gross_profit"] += realized
+                    print("🛡️🛡️ PROTECTED STOP HIT")
+                    print(f"💰 REALIZED PROTECTED PROFIT : ₹{realized:,.2f}")
+                    print(f"🏁 EXIT                     : {event['exit_reason']}")
+                    print("🟢🟢✅✅ TRADE CLOSED (PROFIT)")
+                elif realized == 0:
+                    self.session_stats["breakeven"] += 1
+                    print("🛡️🛡️ PROTECTED STOP HIT")
+                    print("💰 REALIZED P&L             : ₹0.00")
+                    print(f"🏁 EXIT                     : {event['exit_reason']}")
+                    print("⚪⚪ TRADE CLOSED (BREAKEVEN)")
+                else:
+                    # Defensive branch: protected stops should never create
+                    # a loss under the validated Dynamic-SL rules.
+                    self.session_stats["losses"] += 1
+                    self.session_stats["gross_loss"] += abs(realized)
+                    print("⚠️ PROTECTED STOP PRODUCED NEGATIVE P&L")
+                    print(f"💸 REALIZED LOSS             : ₹{abs(realized):,.2f}")
+                    print(f"🏁 EXIT                     : {event['exit_reason']}")
+                    print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
+
+            elif event["event"] == "STOP_LOSS_HIT":
+                realized = event["realized_pnl"]
+                self.session_stats["stoploss"] += 1
+                self.session_stats["active"] -= 1
+
+                if realized < 0:
+                    self.session_stats["losses"] += 1
+                    self.session_stats["gross_loss"] += abs(realized)
+                    print("😭😭 ORIGINAL STOP LOSS HIT")
+                    print(f"💸 REALIZED LOSS            : ₹{abs(realized):,.2f}")
+                    print("🏁 EXIT                     : ORIGINAL STOP LOSS")
+                    print("🔴🔴❌❌ TRADE CLOSED (LOSS)")
+                elif realized == 0:
+                    self.session_stats["breakeven"] += 1
+                    print("⚪⚪ ORIGINAL STOP AT ENTRY")
+                    print("💰 REALIZED P&L             : ₹0.00")
+                    print("⚪⚪ TRADE CLOSED (BREAKEVEN)")
+                else:
+                    self.session_stats["wins"] += 1
+                    self.session_stats["gross_profit"] += realized
+                    print("⚠️ ORIGINAL STOP PRODUCED POSITIVE P&L")
+                    print(f"💰 REALIZED PROFIT          : ₹{realized:,.2f}")
+                    print("🟢🟢 TRADE CLOSED (PROFIT)")
 
             print()
             print(f"🔢 Trade No. : {event['trade_number']}")
             print(f"📊 Stock     : {event['display_symbol']}")
-            if event["event"] in ("TARGET_3_HIT", "STOP_LOSS_HIT"):
+            if event["event"] in ("TARGET_3_HIT", "STOP_LOSS_HIT", "PROTECTED_STOP_HIT"):
                 print(f"🏁 Exit      : {event['exit_reason']}")
+                print(f"💵 Exit Price : ₹{event['exit_price']:,.2f}")
+                print(f"💵 Realized P&L : ₹{event['realized_pnl']:,.2f}")
                 print(f"⏱ Duration  : {event['duration']}")
             print(f"🕒 Time      : {datetime.now().strftime('%H:%M:%S')}")
             print("=" * 82)
             print()
+
+        # ========================================================
+        # MARKET DEPTH — LIVE OBSERVATION
+        # One sample per symbol per minute. This preserves the
+        # market_depth.py persistence semantics instead of counting
+        # every websocket tick as a new observation.
+        # ========================================================
+        symbol = market["symbol"]
+        now = datetime.now()
+        sample_key = now.replace(
+            second=0,
+            microsecond=0,
+        )
+
+        if self._depth_last_sample.get(symbol) != sample_key:
+            # NSE is preferred, but its equity-depth endpoint may return
+            # HTTP 403. Never discard a usable Upstox side of the book.
+            upstox_bids = market.get("bids", [])
+            upstox_asks = market.get("asks", [])
+
+            bids = upstox_bids
+            asks = upstox_asks
+            depth_source = "UPSTOX"
+
+            # Try NSE only when the live Upstox book is incomplete.
+            if not (bids and asks):
+                nse_depth = get_nse_market_depth(symbol)
+
+                if nse_depth:
+                    nse_bids = nse_depth.get("bids", [])
+                    nse_asks = nse_depth.get("asks", [])
+
+                    # Prefer a complete NSE book.
+                    if nse_bids and nse_asks:
+                        bids = nse_bids
+                        asks = nse_asks
+                        depth_source = "NSE"
+                    else:
+                        # Preserve any usable Upstox side.
+                        bids = upstox_bids or nse_bids
+                        asks = upstox_asks or nse_asks
+                        depth_source = (
+                            "UPSTOX"
+                            if upstox_bids or upstox_asks
+                            else "NSE"
+                        )
+
+            depth = update_market_depth(
+                symbol,
+                bids,
+                asks,
+                now,
+            )
+
+            if depth:
+                depth["source"] = depth_source
+            self._depth_snapshots[symbol] = depth
+            self._depth_last_sample[symbol] = sample_key
+
+            if depth.get("confirmed"):
+                print(
+                    f"   ✅ DEPTH CONFIRMED : "
+                    f"{depth['confirmed']}"
+                )
 
         # Do not run the signal engine on every tick.
         # Open trades have already been checked above.
@@ -621,10 +707,12 @@ class LiveStreamer:
 
         trade = self.calculate_trade(
             indicators,
-            market_depth=depth,
+            market_depth=self._depth_snapshots.get(
+                market["symbol"]
+            ),
             market_timestamp=market.get(
                 "timestamp"
-            ),
+            ) or datetime.now().isoformat(),
         )
 
         if trade is None:
@@ -667,7 +755,6 @@ class LiveStreamer:
         replay_mode=False,
         replay_timestamp=None,
         shadow_inputs=None,
-        preserve_trade_number=False,
     ):
 
         if trade is None:
@@ -678,10 +765,8 @@ class LiveStreamer:
 
         if replay_mode:
 
-            if not preserve_trade_number:
-
-                self.trade_number += 1
-                trade["trade_number"] = self.trade_number
+            self.trade_number += 1
+            trade["trade_number"] = self.trade_number
 
             alert = {
                 "generated_at": replay_timestamp,
@@ -777,51 +862,6 @@ class LiveStreamer:
         print(f"📊 Stock : {trade.get('display_symbol', trade['symbol'])}")
         print(f"🔢 Trade No.     : {trade['trade_number']}")
 
-        shadow = trade.get("shadow_sentiment")
-
-        if shadow:
-            print(
-                f"🧠 SHADOW SENTIMENT : "
-                f"{shadow['sentiment']} "
-                f"| Score {shadow['score']:+d} "
-                f"| Confidence {shadow['confidence']}%"
-            )
-
-            if shadow.get("reasons"):
-                print(
-                    "   └─ "
-                    + " | ".join(shadow["reasons"])
-                )
-
-        depth = trade.get("market_depth")
-
-        if depth:
-            state = depth.get("state", "UNKNOWN")
-            buy_qty = depth.get("buy_qty", 0)
-            sell_qty = depth.get("sell_qty", 0)
-            ratio = depth.get("ratio", 1.0)
-            persistence = depth.get("persistence", 0)
-            confirmed = depth.get("confirmed") or "NO"
-            source = depth.get("source", "LIVE")
-
-            if ratio == float("inf"):
-                ratio_text = "INF"
-            else:
-                ratio_text = f"{ratio:.2f}"
-
-            print("📚 MARKET DEPTH")
-            print(f"   State       : {state}")
-            print(f"   BUY Qty     : {buy_qty:,}")
-            print(f"   SELL Qty    : {sell_qty:,}")
-            print(f"   Ratio       : {ratio_text}")
-            print(f"   Persistence : {persistence}/10")
-            print(f"   Confirmed   : {confirmed}")
-            print(f"   Source      : {source}")
-
-        else:
-            print("📚 MARKET DEPTH     : NO SAMPLE")
-
-        print("🛡️ DYNAMIC SL      : ACTIVE")
         print("=" * 82)
 
         if trade["risk"]:
@@ -864,7 +904,6 @@ class LiveStreamer:
         print(f"🏅 Grade          : {trade['grade']}")
 
         context = trade.get("context_score")
-
         if context:
             print_engine_breakdown(context)
 
@@ -930,7 +969,7 @@ class LiveStreamer:
             )
 
             print(
-                "Source  : UPSTOX"
+                f"Source  : {institutional.get('source', 'NSE')}"
             )
 
         else:
@@ -939,13 +978,15 @@ class LiveStreamer:
                 "institutional contribution will remain neutral."
             )
 
-        print("=" * 78)
         print("Connecting...")
-
         self.streamer.connect()
 
     def print_session_summary(self, summary_time=None):
-        closed = self.session_stats["wins"] + self.session_stats["losses"]
+        closed = (
+            self.session_stats["wins"]
+            + self.session_stats["losses"]
+            + self.session_stats["breakeven"]
+        )
 
         win_rate = 0.0
         if closed > 0:
@@ -1010,7 +1051,9 @@ class LiveStreamer:
         print(f"🏆 Target 1 Hit           : {self.session_stats['target1']}")
         print(f"🥈 Target 2 Hit           : {self.session_stats['target2']}")
         print(f"👑 Target 3 Hit           : {self.session_stats['target3']}")
-        print(f"😭 Stop Loss Hit          : {self.session_stats['stoploss']}")
+        print(f"😭 Original Stop Loss     : {self.session_stats['stoploss']}")
+        print(f"🛡️ Protected Stop Hit     : {self.session_stats['protected_stop']}")
+        print(f"⚪ Breakeven Trades        : {self.session_stats['breakeven']}")
         print()
         print(f"📦 Closed Trades          : {closed}")
         print(f"🔥 Win Rate (Closed)      : {win_rate:.1f}%")
