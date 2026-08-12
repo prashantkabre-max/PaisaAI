@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "shared_paths": [
+    "scanner/context_scoring.py",
+    "scanner/institutional_flow.py",
+    "scanner/market_depth.py",
+    "scanner/relative_strength.py",
+    "scanner/sector_strength.py",
+    "scanner/sentiment.py",
+    "scanner/live_sentiment_shadow.py",
+    "scanner/indicators.py",
+    "scanner/runtime.py"
+  ],
+  "production_only": [
+    "scanner/stream.py",
+    "scanner/trade_manager.py",
+    "main.py"
+  ],
+  "replay_only": [
+    "scanner/replay_feed.py",
+    "scanner/replay_stream.py",
+    "scanner/replay_trade_manager.py",
+    "scanner/replay_runner.py",
+    "scanner/replay_strategy.py",
+    "scanner/replay_depth.py"
+  ],
+  "accounting_sha": "fa4b2771f58c253faceb5bfc4318995c79c889254960dd73cb49e801353f6dc1"
+}

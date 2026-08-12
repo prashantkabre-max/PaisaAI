@@ -1,0 +1,5 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -e
+cd "$(git rev-parse --show-toplevel)"
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/paisaai_parity.py"
+exec python "$SCRIPT" "$@"
