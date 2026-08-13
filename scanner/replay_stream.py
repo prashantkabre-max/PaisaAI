@@ -18,7 +18,7 @@ from scanner.replay_trade_manager import (
 class ReplayStreamer(LiveStreamer):
 
     def __init__(self):
-        super().__init__()
+        super().__init__(risk_mode="replay")
 
     def replay_register_trade(self, strategy, trade):
         return register_trade(strategy, trade)

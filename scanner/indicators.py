@@ -97,4 +97,62 @@ def calculate_indicators(data, all_indicators=None):
         # Swing
         "swing_high": all_indicators.get("swing_high"),
         "swing_low": all_indicators.get("swing_low"),
+
+        # ========================================================
+        # NEW LIVE INDICATORS
+        # ========================================================
+
+        "stochastic_k": all_indicators.get("stochastic_k"),
+        "stochastic_d": all_indicators.get("stochastic_d"),
+        "stochastic_direction": all_indicators.get(
+            "stochastic_direction"
+        ),
+        "stochastic_overbought": all_indicators.get(
+            "stochastic_overbought"
+        ),
+        "stochastic_oversold": all_indicators.get(
+            "stochastic_oversold"
+        ),
+
+        "support": all_indicators.get("support"),
+        "resistance": all_indicators.get("resistance"),
+        "support_resistance_position": all_indicators.get(
+            "support_resistance_position"
+        ),
+
+        "bb_middle": all_indicators.get("bb_middle"),
+        "bb_upper": all_indicators.get("bb_upper"),
+        "bb_lower": all_indicators.get("bb_lower"),
+        "bb_percent_b": all_indicators.get("bb_percent_b"),
+        "bb_band_width": all_indicators.get("bb_band_width"),
+        "bb_bandwidth": all_indicators.get("bb_bandwidth"),
+        "bb_position": all_indicators.get("bb_position"),
+
+        "ichimoku_tenkan": all_indicators.get(
+            "ichimoku_tenkan"
+        ),
+        "ichimoku_kijun": all_indicators.get(
+            "ichimoku_kijun"
+        ),
+        "ichimoku_span_a": all_indicators.get(
+            "ichimoku_span_a"
+        ),
+        "ichimoku_span_b": all_indicators.get(
+            "ichimoku_span_b"
+        ),
+        "ichimoku_cloud_top": all_indicators.get(
+            "ichimoku_cloud_top"
+        ),
+        "ichimoku_cloud_bottom": all_indicators.get(
+            "ichimoku_cloud_bottom"
+        ),
+        "ichimoku_price_position": all_indicators.get(
+            "ichimoku_price_position"
+        ),
+        "ichimoku_tk_direction": all_indicators.get(
+            "ichimoku_tk_direction"
+        ),
+        "ichimoku_cloud_direction": all_indicators.get(
+            "ichimoku_cloud_direction"
+        ),
     }

@@ -288,6 +288,11 @@ class LiveStreamer:
         self._depth_snapshots = {}
         self._depth_last_sample = {}
 
+        # Replay uses LiveStreamer only for the shared calculation,
+        # scoring and presentation pipeline. Never open a live websocket.
+        if self.risk_mode == "replay":
+            self.streamer = None
+            return
 
         self.streamer = upstox_client.MarketDataStreamerV3(
             api_client,

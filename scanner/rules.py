@@ -134,3 +134,88 @@ def rsi_rule(indicators, direction="BUY"):
         return RSI_BUY_MIN <= rsi <= RSI_BUY_MAX
 
     return RSI_SELL_MIN <= rsi <= RSI_SELL_MAX
+
+
+# ============================================================
+# INDUSTRY-STANDARD INDICATOR CONFIRMATIONS
+# ============================================================
+
+def stochastic_rule(indicators, direction="BUY"):
+    k = indicators.get("stochastic_k")
+    d = indicators.get("stochastic_d")
+
+    if k is None or d is None:
+        return False
+
+    if is_buy(direction):
+        return k > d
+
+    return k < d
+
+
+def support_resistance_rule(indicators, direction="BUY"):
+    position = indicators.get(
+        "support_resistance_position"
+    )
+
+    if is_buy(direction):
+        return position in {
+            "BREAKOUT",
+            "UPPER_RANGE",
+        }
+
+    return position in {
+        "BREAKDOWN",
+        "LOWER_RANGE",
+    }
+
+
+def bollinger_rule(indicators, direction="BUY"):
+    position = indicators.get("bb_position")
+    percent_b = indicators.get("bb_percent_b")
+
+    if is_buy(direction):
+        return (
+            position == "ABOVE_MIDDLE"
+            or (
+                percent_b is not None
+                and percent_b >= 0.50
+            )
+        )
+
+    return (
+        position == "BELOW_MIDDLE"
+        or (
+            percent_b is not None
+            and percent_b <= 0.50
+        )
+    )
+
+
+def bollinger_bandwidth_rule(indicators):
+    bandwidth = indicators.get("bb_bandwidth")
+
+    if bandwidth is None:
+        return False
+
+    return bandwidth > 0
+
+
+def ichimoku_rule(indicators, direction="BUY"):
+    price_position = indicators.get(
+        "ichimoku_price_position"
+    )
+    tk_direction = indicators.get(
+        "ichimoku_tk_direction"
+    )
+
+    if is_buy(direction):
+        return (
+            price_position == "ABOVE_CLOUD"
+            and tk_direction == "BULLISH"
+        )
+
+    return (
+        price_position == "BELOW_CLOUD"
+        and tk_direction == "BEARISH"
+    )

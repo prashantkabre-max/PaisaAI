@@ -1,0 +1,31 @@
+{
+  "config": {
+    "lookback_days": 15,
+    "outcome_bars": 30,
+    "shadow_min": 75.0,
+    "symbols": 10
+  },
+  "baseline": {
+    "signals": 0,
+    "completed": 0,
+    "wins": 0,
+    "losses": 0,
+    "timeouts": 0,
+    "net_r": 0.0,
+    "win_rate_closed_pct": 0.0,
+    "avg_r_per_signal": 0.0,
+    "avg_r_per_completed": 0.0
+  },
+  "enhanced": {
+    "signals": 0,
+    "completed": 0,
+    "wins": 0,
+    "losses": 0,
+    "timeouts": 0,
+    "net_r": 0.0,
+    "win_rate_closed_pct": 0.0,
+    "avg_r_per_signal": 0.0,
+    "avg_r_per_completed": 0.0
+  },
+  "per_symbol": []
+}

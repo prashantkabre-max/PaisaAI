@@ -13,6 +13,7 @@ replay window begins.
 
 import config
 import upstox_client
+import os
 
 from datetime import date, datetime
 
@@ -62,7 +63,7 @@ class ReplayFeed:
         # MTF and decision pipeline.
         #
         # No live connection is started.
-        self.streamer = LiveStreamer()
+        self.streamer = LiveStreamer(risk_mode="replay")
 
         self.trade_number = 0
         self.active_strategy = STOPLOSS_MODE.upper()
@@ -321,17 +322,33 @@ class ReplayFeed:
         if not all_candles:
             return 0
 
-        # Keep the same actual Replay window we have been testing.
-        replay_count = min(
-            501,
-            len(all_candles),
+        # Full Replay is now the default. Keep a dedicated historical
+        # warm-up section so MTF indicators are established before the
+        # first tradeable replay candle. A finite replay can still be
+        # requested explicitly with REPLAY_CANDLE_LIMIT for diagnostics.
+        warmup_target = max(
+            0,
+            int(os.getenv("REPLAY_WARMUP_CANDLES", "500"))
+        )
+        candle_limit = max(
+            0,
+            int(os.getenv("REPLAY_CANDLE_LIMIT", "0"))
         )
 
-        if replay_count < 2:
-            return 0
+        if candle_limit > 0:
+            replay_count = min(candle_limit, len(all_candles))
+            warmup_candles = all_candles[:-replay_count]
+            replay_candles = all_candles[-replay_count:]
+        else:
+            warmup_count = min(
+                warmup_target,
+                max(0, len(all_candles) - 1)
+            )
+            warmup_candles = all_candles[:warmup_count]
+            replay_candles = all_candles[warmup_count:]
 
-        warmup_candles = all_candles[:-replay_count]
-        replay_candles = all_candles[-replay_count:]
+        if len(replay_candles) < 2:
+            return 0
 
         # ------------------------------------------------------------------
         # Start Replay from a clean symbol/depth/trade state.
@@ -616,8 +633,6 @@ class ReplayFeed:
             )
 
         print("=" * 78)
-
-        import os
 
         limit = int(os.getenv("REPLAY_SYMBOL_LIMIT", "0"))
         if limit > 0:
