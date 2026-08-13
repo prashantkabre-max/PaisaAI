@@ -9,6 +9,11 @@ from scanner.rules import (
     price_change_rule,
     open_rule,
     high_low_rule,
+    stochastic_rule,
+    support_resistance_rule,
+    bollinger_rule,
+    bollinger_bandwidth_rule,
+    ichimoku_rule,
 )
 
 WEIGHTS = {
@@ -22,6 +27,11 @@ WEIGHTS = {
     "price_change": 5,
     "open": 3,
     "high_low": 2,
+    "stochastic": 5,
+    "support_resistance": 5,
+    "bollinger": 5,
+    "bollinger_bandwidth": 5,
+    "ichimoku": 5,
 }
 
 
@@ -52,6 +62,11 @@ def calculate_score(indicators, direction="BUY"):
         ("price_change", lambda indicators: price_change_rule(indicators, direction)),
         ("open", lambda indicators: open_rule(indicators, direction)),
         ("high_low", lambda indicators: high_low_rule(indicators, direction)),
+        ("stochastic", lambda indicators: stochastic_rule(indicators, direction)),
+        ("support_resistance", lambda indicators: support_resistance_rule(indicators, direction)),
+        ("bollinger", lambda indicators: bollinger_rule(indicators, direction)),
+        ("bollinger_bandwidth", bollinger_bandwidth_rule),
+        ("ichimoku", lambda indicators: ichimoku_rule(indicators, direction)),
     ]
 
     for name, rule in rules:
@@ -61,16 +76,21 @@ def calculate_score(indicators, direction="BUY"):
         else:
             failed.append(name)
 
-    if score >= 90:
+    total_weight = sum(WEIGHTS.values())
+    confidence = round((score / total_weight) * 100, 2) if total_weight else 0
+
+    if confidence >= 90:
         grade = "A+"
-    elif score >= 75:
+    elif confidence >= 75:
         grade = "A"
+    elif confidence >= 65:
+        grade = "A-"
     else:
         grade = "IGNORE"
 
     return {
         "grade": grade,
-        "confidence": score,
+        "confidence": confidence,
         "passed": passed,
         "failed": failed,
     }

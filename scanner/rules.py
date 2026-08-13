@@ -193,7 +193,12 @@ def bollinger_rule(indicators, direction="BUY"):
 
 
 def bollinger_bandwidth_rule(indicators):
-    bandwidth = indicators.get("bb_bandwidth")
+    # Production payload currently exposes bb_band_width.
+    # Keep bb_bandwidth as backward-compatible alias.
+    bandwidth = indicators.get("bb_band_width")
+
+    if bandwidth is None:
+        bandwidth = indicators.get("bb_bandwidth")
 
     if bandwidth is None:
         return False
